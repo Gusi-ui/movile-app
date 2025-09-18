@@ -1,0 +1,25 @@
+{
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "emmet.includeLanguages": {
+    "typescript": "typescriptreact",
+    "javascript": "javascriptreact"
+  },
+  "files.exclude": {
+    "node_modules": true,
+    ".expo": true,
+    "dist": true,
+    "web-build": true
+  },
+  "search.exclude": {
+    "node_modules": true,
+    ".expo": true,
+    "dist": true,
+    "web-build": true,
+    "*.log": true
+  }
+}
