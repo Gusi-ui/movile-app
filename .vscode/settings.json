@@ -21,5 +21,9 @@
     "dist": true,
     "web-build": true,
     "*.log": true
-  }
+  },
+  "typescript.validate.enable": true,
+  "typescript.preferences.includePackageJsonAutoImports": "off",
+  "yaml.validate": false,
+  "yaml.completion": false
 }

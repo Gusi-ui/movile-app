@@ -7,6 +7,7 @@ import HomeScreen from '../screens/HomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 import AssignmentsScreen from '../screens/AssignmentsScreen';
 import AssignmentDetailScreen from '../screens/AssignmentDetailScreen';
+import BalancesScreen from '../screens/BalancesScreen';
 import { RootStackParamList } from '../types';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -46,7 +47,7 @@ export default function AppNavigator() {
             />
             <Stack.Screen
               name="Balances"
-              component={HomeScreen}
+              component={BalancesScreen}
               options={{ title: 'Balances' }}
             />
             <Stack.Screen

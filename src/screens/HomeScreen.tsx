@@ -54,7 +54,10 @@ export default function HomeScreen() {
           <Text style={styles.menuItemText}>🗺️ Mi Ruta</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity 
+          style={styles.menuItem}
+          onPress={() => navigation.navigate('Balances')}
+        >
           <Text style={styles.menuItemText}>💰 Balances</Text>
         </TouchableOpacity>
 
