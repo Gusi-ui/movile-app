@@ -1,14 +1,21 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthResponse, Worker } from '../types';
+import { 
+  Assignment, 
+  Route, 
+  Balance, 
+  Note, 
+  UserSettings, 
+  WorkerStats,
+  ApiResponse,
+  PaginatedResponse,
+  AssignmentFilters,
+  RouteFilters,
+  BalanceFilters
+} from '../types/database';
 
 // Configuración de la API
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.sadlas.com/v1';
-
-interface ApiResponse<T> {
-  data: T | null;
-  error: string | null;
-  status: number;
-}
 
 class ApiClient {
   private baseURL: string;
@@ -102,54 +109,96 @@ class ApiClient {
   }
 
   // Métodos de asignaciones
-  async getAssignments(): Promise<ApiResponse<any[]>> {
-    return this.request<any[]>('/worker/assignments');
+  async getAssignments(filters?: AssignmentFilters): Promise<ApiResponse<PaginatedResponse<Assignment>>> {
+    const queryParams = filters ? new URLSearchParams(filters as any).toString() : '';
+    const endpoint = queryParams ? `/worker/assignments?${queryParams}` : '/worker/assignments';
+    return this.request<PaginatedResponse<Assignment>>(endpoint);
   }
 
-  async getAssignmentDetail(id: string): Promise<ApiResponse<any>> {
-    return this.request<any>(`/worker/assignments/${id}`);
+  async getAssignmentDetail(id: string): Promise<ApiResponse<Assignment>> {
+    return this.request<Assignment>(`/worker/assignments/${id}`);
   }
 
-  async updateAssignmentStatus(id: string, status: string): Promise<ApiResponse<any>> {
-    return this.request<any>(`/worker/assignments/${id}/status`, {
+  async updateAssignmentStatus(id: string, status: string): Promise<ApiResponse<Assignment>> {
+    return this.request<Assignment>(`/worker/assignments/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ status }),
     });
   }
 
   // Métodos de ruta
-  async getRoute(): Promise<ApiResponse<any>> {
-    return this.request<any>('/worker/route');
+  async getRoutes(filters?: RouteFilters): Promise<ApiResponse<PaginatedResponse<Route>>> {
+    const queryParams = filters ? new URLSearchParams(filters as any).toString() : '';
+    const endpoint = queryParams ? `/worker/routes?${queryParams}` : '/worker/routes';
+    return this.request<PaginatedResponse<Route>>(endpoint);
+  }
+
+  async getCurrentRoute(): Promise<ApiResponse<Route | null>> {
+    return this.request<Route | null>('/worker/route/current');
+  }
+
+  async getRouteDetail(id: string): Promise<ApiResponse<Route>> {
+    return this.request<Route>(`/worker/routes/${id}`);
+  }
+
+  async updateRouteStatus(id: string, status: string): Promise<ApiResponse<Route>> {
+    return this.request<Route>(`/worker/routes/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
   }
 
   // Métodos de balances
-  async getBalances(): Promise<ApiResponse<any>> {
-    return this.request<any>('/worker/balances');
+  async getBalances(filters?: BalanceFilters): Promise<ApiResponse<PaginatedResponse<Balance>>> {
+    const queryParams = filters ? new URLSearchParams(filters as any).toString() : '';
+    const endpoint = queryParams ? `/worker/balances?${queryParams}` : '/worker/balances';
+    return this.request<PaginatedResponse<Balance>>(endpoint);
+  }
+
+  async getBalanceDetail(id: string): Promise<ApiResponse<Balance>> {
+    return this.request<Balance>(`/worker/balances/${id}`);
   }
 
   // Métodos de notas
-  async getNotes(): Promise<ApiResponse<any[]>> {
-    return this.request<any[]>('/worker/notes');
+  async getNotes(): Promise<ApiResponse<PaginatedResponse<Note>>> {
+    return this.request<PaginatedResponse<Note>>('/worker/notes');
   }
 
-  async createNote(content: string): Promise<ApiResponse<any>> {
-    return this.request<any>('/worker/notes', {
+  async createNote(data: Partial<Note>): Promise<ApiResponse<Note>> {
+    return this.request<Note>('/worker/notes', {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(data),
     });
   }
 
-  async updateNote(id: string, content: string): Promise<ApiResponse<any>> {
-    return this.request<any>(`/worker/notes/${id}`, {
+  async updateNote(id: string, data: Partial<Note>): Promise<ApiResponse<Note>> {
+    return this.request<Note>(`/worker/notes/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(data),
     });
   }
 
-  async deleteNote(id: string): Promise<ApiResponse<any>> {
-    return this.request<any>(`/worker/notes/${id}`, {
+  async deleteNote(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>(`/worker/notes/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  // Métodos de configuración
+  async getUserSettings(): Promise<ApiResponse<UserSettings>> {
+    return this.request<UserSettings>('/worker/settings');
+  }
+
+  async updateUserSettings(settings: Partial<UserSettings>): Promise<ApiResponse<UserSettings>> {
+    return this.request<UserSettings>('/worker/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  }
+
+  // Métodos de estadísticas
+  async getWorkerStats(): Promise<ApiResponse<WorkerStats>> {
+    return this.request<WorkerStats>('/worker/stats');
   }
 }
 
@@ -167,7 +216,7 @@ export const getWorkerProfile = () => apiClient.getWorkerProfile();
 export const updateWorkerProfile = (data: Partial<Worker>) => 
   apiClient.updateWorkerProfile(data);
 
-export const getAssignments = () => apiClient.getAssignments();
+export const getAssignments = (filters?: AssignmentFilters) => apiClient.getAssignments(filters);
 
 export const getAssignmentDetail = (id: string) => 
   apiClient.getAssignmentDetail(id);
@@ -175,16 +224,18 @@ export const getAssignmentDetail = (id: string) =>
 export const updateAssignmentStatus = (id: string, status: string) => 
   apiClient.updateAssignmentStatus(id, status);
 
-export const getRoute = () => apiClient.getRoute();
+export const getRoutes = (filters?: RouteFilters) => apiClient.getRoutes(filters);
 
-export const getBalances = () => apiClient.getBalances();
+export const getCurrentRoute = () => apiClient.getCurrentRoute();
+
+export const getBalances = (filters?: BalanceFilters) => apiClient.getBalances(filters);
 
 export const getNotes = () => apiClient.getNotes();
 
-export const createNote = (content: string) => apiClient.createNote(content);
+export const createNote = (data: Partial<Note>) => apiClient.createNote(data);
 
-export const updateNote = (id: string, content: string) => 
-  apiClient.updateNote(id, content);
+export const updateNote = (id: string, data: Partial<Note>) => 
+  apiClient.updateNote(id, data);
 
 export const deleteNote = (id: string) => apiClient.deleteNote(id);
 

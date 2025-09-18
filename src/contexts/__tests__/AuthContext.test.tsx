@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, act, waitFor } from '@testing-library/react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthProvider, useAuth } from '../AuthContext';
 import * as api from '../../lib/api';
@@ -13,18 +14,18 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 jest.mock('../../lib/api');
 
 const TestComponent = () => {
-  const { state, login, logout } = useAuth();
+  const { state } = useAuth();
   
   return (
-    <>
+    <View>
       {state.isAuthenticated ? (
-        <div testID="authenticated">
+        <Text testID="authenticated">
           Welcome {state.currentWorker?.name}
-        </div>
+        </Text>
       ) : (
-        <div testID="not-authenticated">Please login</div>
+        <Text testID="not-authenticated">Please login</Text>
       )}
-    </>
+    </View>
   );
 };
 
@@ -101,14 +102,14 @@ describe('AuthContext', () => {
       };
 
       return (
-        <>
-          <button testID="login-button" onPress={handleLogin}>
-            Login
-          </button>
+        <View>
+          <TouchableOpacity testID="login-button" onPress={handleLogin}>
+            <Text>Login</Text>
+          </TouchableOpacity>
           {state.isAuthenticated && (
-            <div testID="authenticated">Welcome {state.currentWorker?.name}</div>
+            <Text testID="authenticated">Welcome {state.currentWorker?.name}</Text>
           )}
-        </>
+        </View>
       );
     };
 
@@ -148,14 +149,14 @@ describe('AuthContext', () => {
       };
 
       return (
-        <>
-          <button testID="login-button" onPress={handleLogin}>
-            Login
-          </button>
+        <View>
+          <TouchableOpacity testID="login-button" onPress={handleLogin}>
+            <Text>Login</Text>
+          </TouchableOpacity>
           {state.error && (
-            <div testID="error">{state.error}</div>
+            <Text testID="error">{state.error}</Text>
           )}
-        </>
+        </View>
       );
     };
 

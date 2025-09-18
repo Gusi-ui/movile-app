@@ -5,6 +5,8 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useAuth } from '../contexts/AuthContext';
 import HomeScreen from '../screens/HomeScreen';
 import LoginScreen from '../screens/LoginScreen';
+import AssignmentsScreen from '../screens/AssignmentsScreen';
+import AssignmentDetailScreen from '../screens/AssignmentDetailScreen';
 import { RootStackParamList } from '../types';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -34,12 +36,12 @@ export default function AppNavigator() {
             />
             <Stack.Screen
               name="Assignments"
-              component={HomeScreen}
+              component={AssignmentsScreen}
               options={{ title: 'Asignaciones' }}
             />
             <Stack.Screen
               name="AssignmentDetail"
-              component={HomeScreen}
+              component={AssignmentDetailScreen}
               options={{ title: 'Detalle Asignación' }}
             />
             <Stack.Screen

@@ -7,9 +7,15 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../contexts/AuthContext';
+import { RootStackParamList } from '../types';
+
+type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
 
 export default function HomeScreen() {
+  const navigation = useNavigation<HomeScreenNavigationProp>();
   const { state, logout } = useAuth();
 
   const handleLogout = () => {
@@ -37,7 +43,10 @@ export default function HomeScreen() {
       <View style={styles.menuContainer}>
         <Text style={styles.menuTitle}>Menú Principal</Text>
 
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity 
+          style={styles.menuItem}
+          onPress={() => navigation.navigate('Assignments')}
+        >
           <Text style={styles.menuItemText}>📋 Mis Asignaciones</Text>
         </TouchableOpacity>
 
