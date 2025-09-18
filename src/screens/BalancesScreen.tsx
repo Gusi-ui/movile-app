@@ -2,26 +2,17 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
-  TouchableOpacity,
+  StyleSheet,
   RefreshControl,
   Alert,
+  TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
 import { Balance, BalanceFilters } from '../types/database';
-import { RootStackParamList } from '../types';
 import { getBalances } from '../lib/api';
 
-type BalancesScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'Balances'
->;
-
 export default function BalancesScreen() {
-  const navigation = useNavigation<BalancesScreenNavigationProp>();
   const [balances, setBalances] = useState<Balance[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

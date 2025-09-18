@@ -5,6 +5,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 
 // Mock react-native-gesture-handler
 jest.mock('react-native-gesture-handler', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const View = require('react-native/Libraries/Components/View/View');
   return {
     Swipeable: View,
