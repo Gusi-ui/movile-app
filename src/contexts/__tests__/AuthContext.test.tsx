@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, act, waitFor } from '@testing-library/react-native';
+import { render, act, waitFor, fireEvent } from '@testing-library/react-native';
 import { Text, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthProvider, useAuth } from '../AuthContext';
@@ -122,7 +122,7 @@ describe('AuthContext', () => {
     const loginButton = getByTestId('login-button');
     
     await act(async () => {
-      loginButton.props.onPress();
+      fireEvent.press(loginButton);
     });
 
     await waitFor(() => {
@@ -133,19 +133,13 @@ describe('AuthContext', () => {
   });
 
   it('should handle login error', async () => {
-    const mockResponse = {
-      data: null,
-      error: 'Invalid credentials',
-      status: 401,
-    };
-
-    (api.authenticateWorker as jest.Mock).mockResolvedValueOnce(mockResponse);
+    (api.authenticateWorker as jest.Mock).mockRejectedValueOnce(new Error('Invalid credentials'));
 
     const TestLoginComponent = () => {
       const { login, state } = useAuth();
       
-      const handleLogin = () => {
-        login({ email: 'test@example.com', password: 'wrong-password' });
+      const handleLogin = async () => {
+        await login({ email: 'test@example.com', password: 'wrong-password' });
       };
 
       return (
@@ -156,11 +150,14 @@ describe('AuthContext', () => {
           {state.error && (
             <Text testID="error">{state.error}</Text>
           )}
+          {state.isLoading && (
+            <Text testID="loading">Loading...</Text>
+          )}
         </View>
       );
     };
 
-    const { getByTestId } = render(
+    const { getByTestId, queryByTestId } = render(
       <AuthProvider>
         <TestLoginComponent />
       </AuthProvider>
@@ -168,12 +165,10 @@ describe('AuthContext', () => {
 
     const loginButton = getByTestId('login-button');
     
-    await act(async () => {
-      loginButton.props.onPress();
-    });
+    fireEvent.press(loginButton);
 
     await waitFor(() => {
-      expect(getByTestId('error')).toBeTruthy();
-    });
+      expect(queryByTestId('error')).toBeTruthy();
+    }, { timeout: 3000 });
   });
 });

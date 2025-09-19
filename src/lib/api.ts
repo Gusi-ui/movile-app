@@ -17,11 +17,29 @@ import {
 // Configuración de la API
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.sadlas.com/v1';
 
+// Debug: Log para verificar la URL
+console.log('🔧 API_BASE_URL configurada:', API_BASE_URL);
+console.log('🔧 EXPO_PUBLIC_API_URL:', process.env.EXPO_PUBLIC_API_URL);
+
 class ApiClient {
   private baseURL: string;
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
+  }
+
+  private createQueryParams(filters: Record<string, unknown> | AssignmentFilters | RouteFilters | BalanceFilters): string {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        if (Array.isArray(value)) {
+          value.forEach(item => params.append(key, String(item)));
+        } else {
+          params.append(key, String(value));
+        }
+      }
+    });
+    return params.toString();
   }
 
   private async getAuthToken(): Promise<string | null> {
@@ -40,6 +58,10 @@ class ApiClient {
     try {
       const token = await this.getAuthToken();
       const url = `${this.baseURL}${endpoint}`;
+      
+      // Debug: Log del token
+      console.log('🔑 Token obtenido:', token ? 'Token presente' : 'No token');
+      console.log('🌐 URL de petición:', url);
       
       const config: RequestInit = {
         headers: {
@@ -110,7 +132,7 @@ class ApiClient {
 
   // Métodos de asignaciones
   async getAssignments(filters?: AssignmentFilters): Promise<ApiResponse<PaginatedResponse<Assignment>>> {
-    const queryParams = filters ? new URLSearchParams(filters as any).toString() : '';
+    const queryParams = filters ? this.createQueryParams(filters) : '';
     const endpoint = queryParams ? `/worker/assignments?${queryParams}` : '/worker/assignments';
     return this.request<PaginatedResponse<Assignment>>(endpoint);
   }
@@ -128,7 +150,7 @@ class ApiClient {
 
   // Métodos de ruta
   async getRoutes(filters?: RouteFilters): Promise<ApiResponse<PaginatedResponse<Route>>> {
-    const queryParams = filters ? new URLSearchParams(filters as any).toString() : '';
+    const queryParams = filters ? this.createQueryParams(filters) : '';
     const endpoint = queryParams ? `/worker/routes?${queryParams}` : '/worker/routes';
     return this.request<PaginatedResponse<Route>>(endpoint);
   }
@@ -150,7 +172,7 @@ class ApiClient {
 
   // Métodos de balances
   async getBalances(filters?: BalanceFilters): Promise<ApiResponse<PaginatedResponse<Balance>>> {
-    const queryParams = filters ? new URLSearchParams(filters as any).toString() : '';
+    const queryParams = filters ? this.createQueryParams(filters) : '';
     const endpoint = queryParams ? `/worker/balances?${queryParams}` : '/worker/balances';
     return this.request<PaginatedResponse<Balance>>(endpoint);
   }

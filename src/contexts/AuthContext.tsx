@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Worker, AuthCredentials, AuthResponse } from '../types';
+import { Worker, AuthCredentials } from '../types';
 import { authenticateWorker } from '../lib/api';
 
 const initialState = {
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const checkAuthStatus = async () => {
     try {
       const workerData = await AsyncStorage.getItem('worker');
-      if (workerData) {
+      if (workerData && workerData !== 'undefined') {
         const worker = JSON.parse(workerData);
         dispatch({ type: 'AUTH_SUCCESS', payload: worker });
       } else {
@@ -100,12 +100,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('No se recibieron datos de autenticación');
       }
 
-      const authResponse = response.data as AuthResponse;
+      // El servidor devuelve {data: {data: {...}, error: null, status: 200}}
+      // Necesitamos acceder a response.data.data
+      const serverResponse = response.data as any;
+      
+      if (!serverResponse.data) {
+        throw new Error(serverResponse.error || 'Error en la respuesta del servidor');
+      }
+      
+      const authResponse = serverResponse.data;
       const worker = authResponse.worker;
 
+      if (!worker) {
+        throw new Error('No se recibió información del trabajador');
+      }
+
+      // Debug: Logs del proceso de login
+      console.log('🔍 Respuesta de login completa:', response);
+      console.log('🔍 Respuesta de login data:', response.data);
+      console.log('🔍 AuthResponse corregido:', authResponse);
+      console.log('👤 Worker:', worker);
+      console.log('🔑 Token recibido:', authResponse.token ? 'Sí' : 'No');
+
       await AsyncStorage.setItem('worker', JSON.stringify(worker));
+      
+      // Guardar token si existe
       if (authResponse.token) {
-        await AsyncStorage.setItem('token', authResponse.token);
+        await AsyncStorage.setItem('auth_token', authResponse.token);
+        console.log('✅ Token guardado en AsyncStorage');
+      } else {
+        console.log('❌ No hay token para guardar');
+      }
+      if (authResponse.refresh_token) {
+        await AsyncStorage.setItem('refresh_token', authResponse.refresh_token);
       }
 
       dispatch({ type: 'AUTH_SUCCESS', payload: worker });

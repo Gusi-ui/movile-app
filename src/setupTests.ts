@@ -1,11 +1,12 @@
 // Mock AsyncStorage
-jest.mock('@react-native-async-storage/async-storage', () =>
-  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
-);
+jest.mock('@react-native-async-storage/async-storage', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('@react-native-async-storage/async-storage/jest/async-storage-mock');
+});
 
 // Mock react-native-gesture-handler
 jest.mock('react-native-gesture-handler', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
   const View = require('react-native/Libraries/Components/View/View');
   return {
     Swipeable: View,
@@ -37,11 +38,11 @@ jest.mock('react-native-gesture-handler', () => {
   };
 });
 
-// Mock expo modules
+// Mock expo-status-bar
 jest.mock('expo-status-bar', () => ({
   StatusBar: 'StatusBar',
 }));
 
-// Global test setup
+// Global setup
 declare const global: any;
 global.__DEV__ = true;

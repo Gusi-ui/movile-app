@@ -7,7 +7,9 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 
 // Mock fetch
-declare const global: any;
+declare const global: typeof globalThis & {
+  fetch: jest.Mock;
+};
 global.fetch = jest.fn();
 
 describe('API Client', () => {

@@ -22,7 +22,7 @@ export interface AuthCredentials {
 export interface AuthResponse {
   worker: Worker;
   token?: string;
-  message: string;
+  refresh_token?: string;
 }
 
 // Navigation Types
