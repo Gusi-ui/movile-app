@@ -38,7 +38,8 @@ interface DaySchedule {
 }
 
 export default function ScheduleScreen(): React.JSX.Element {
-  const { user } = useAuth();
+  const { state } = useAuth();
+  const { currentWorker } = state;
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [weekSchedule, setWeekSchedule] = useState<DaySchedule[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -47,7 +48,7 @@ export default function ScheduleScreen(): React.JSX.Element {
 
   useEffect(() => {
     loadSchedule();
-  }, [user, currentWeekStart]);
+  }, [currentWorker, currentWeekStart]);
 
   const getWeekDates = (startDate: Date): Date[] => {
     const dates: Date[] = [];
@@ -63,7 +64,7 @@ export default function ScheduleScreen(): React.JSX.Element {
   };
 
   const loadSchedule = async (): Promise<void> => {
-    if (!user?.email) {
+    if (!currentWorker?.email) {
       setLoading(false);
       return;
     }
@@ -75,7 +76,7 @@ export default function ScheduleScreen(): React.JSX.Element {
       const { data: workerData } = await supabase
         .from('workers')
         .select('id')
-        .ilike('email', user.email)
+        .ilike('email', currentWorker.email)
         .maybeSingle();
 
       if (!workerData) {
@@ -83,7 +84,7 @@ export default function ScheduleScreen(): React.JSX.Element {
         return;
       }
 
-      // Obtener asignaciones activas
+      // Obtener asignaciones de la trabajadora
       const { data: assignmentsData } = await supabase
         .from('assignments')
         .select(
@@ -97,7 +98,7 @@ export default function ScheduleScreen(): React.JSX.Element {
           users!inner(name, surname)
         `
         )
-        .eq('worker_id', workerData.id)
+        .eq('worker_id', (workerData as { id: string }).id)
         .eq('status', 'active');
 
       if (assignmentsData) {

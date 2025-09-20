@@ -33,7 +33,8 @@ interface ServiceRow {
 }
 
 export default function HomeScreen(): React.JSX.Element {
-  const { user } = useAuth();
+  const { state } = useAuth();
+  const { currentWorker } = state;
   const { scheduleServiceReminders, notifyAssignmentUpdate } =
     useNotifications();
 
@@ -146,12 +147,12 @@ export default function HomeScreen(): React.JSX.Element {
   }, []);
 
   const displayName = useMemo(() => {
-    const meta = user?.name;
+    const meta = currentWorker?.name;
     if (typeof meta === 'string' && meta.trim() !== '') return meta;
-    const email = user?.email ?? '';
+    const email = currentWorker?.email ?? '';
     if (email.includes('@')) return email.split('@')[0] ?? 'Trabajadora';
     return 'Trabajadora';
-  }, [user?.email, user?.name]);
+  }, [currentWorker?.email, currentWorker?.name]);
 
   const renderTodayServices = (): React.JSX.Element => {
     const now = new Date();
@@ -290,7 +291,7 @@ export default function HomeScreen(): React.JSX.Element {
 
   useEffect(() => {
     const load = async (): Promise<void> => {
-      if (user?.email === undefined) {
+      if (currentWorker?.email === undefined) {
         setTodayAssignments([]);
         setLoading(false);
         return;
@@ -303,16 +304,16 @@ export default function HomeScreen(): React.JSX.Element {
         const { data: workerData, error: workerError } = await supabase
           .from('workers')
           .select('id')
-          .ilike('email', user.email)
+          .ilike('email', currentWorker.email)
           .maybeSingle();
 
-        if (workerError !== null || workerData === null) {
+        if (workerError !== null || !workerData) {
           setTodayAssignments([]);
           setLoading(false);
           return;
         }
 
-        const workerId = workerData.id;
+        const workerId = (workerData as { id: string }).id;
         const todayKey = new Date().toISOString().split('T')[0];
 
         // Verificar si hoy es festivo
@@ -389,7 +390,7 @@ export default function HomeScreen(): React.JSX.Element {
     };
 
     load();
-  }, [user?.email, getTodaySlots, scheduleServiceReminders]);
+  }, [currentWorker?.email, getTodaySlots, scheduleServiceReminders]);
 
   return (
     <ScrollView style={styles.container}>
@@ -495,7 +496,7 @@ export default function HomeScreen(): React.JSX.Element {
         <View style={styles.statCard}>
           <Text style={styles.statLabel}>Servicios Hoy</Text>
           <Text style={styles.statValue}>
-            {loading ? '...' : todayAssignments.length}
+            {loading ? '-' : todayAssignments.length}
           </Text>
           <Text style={styles.statDescription}>asignaciones activas</Text>
         </View>
@@ -503,14 +504,14 @@ export default function HomeScreen(): React.JSX.Element {
         <View style={styles.statCard}>
           <Text style={styles.statLabel}>Horas Esta Semana</Text>
           <Text style={styles.statValue}>
-            {loading ? '...' : weeklyHours.toFixed(1)}
+            {loading ? '-' : weeklyHours.toFixed(1)}
           </Text>
           <Text style={styles.statDescription}>programadas</Text>
         </View>
 
         <View style={styles.statCard}>
           <Text style={styles.statLabel}>Usuarios Activos</Text>
-          <Text style={styles.statValue}>{loading ? '...' : activeUsers}</Text>
+          <Text style={styles.statValue}>{loading ? '-' : activeUsers}</Text>
           <Text style={styles.statDescription}>registrados</Text>
         </View>
       </View>

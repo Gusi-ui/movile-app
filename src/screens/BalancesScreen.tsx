@@ -10,7 +10,37 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Balance, BalanceFilters } from '../types/database';
-import { getBalances } from '../lib/api';
+import { getWorkerBalances } from '../lib/supabase';
+import { Database } from '../types/supabase';
+
+type SupabaseBalance = Database['public']['Tables']['hours_balances']['Row'];
+
+// Adaptador para convertir datos de Supabase al formato esperado
+const adaptSupabaseBalance = (supabaseBalance: SupabaseBalance): Balance => {
+  // Crear fechas del período basadas en mes y año
+  const year = supabaseBalance.year;
+  const monthIndex = parseInt(supabaseBalance.month) - 1; // JavaScript months are 0-indexed
+  const periodStart = new Date(year, monthIndex, 1);
+  const periodEnd = new Date(year, monthIndex + 1, 0); // Last day of the month
+
+  return {
+    id: supabaseBalance.id,
+    worker_id: supabaseBalance.worker_id,
+    period_start: periodStart.toISOString(),
+    period_end: periodEnd.toISOString(),
+    base_salary: supabaseBalance.contracted_hours * 15, // Estimación: €15/hora
+    overtime_hours: Math.max(0, supabaseBalance.worked_hours - supabaseBalance.contracted_hours),
+    overtime_rate: 20, // €20/hora extra
+    bonuses: 0,
+    deductions: 0,
+    total_amount: supabaseBalance.balance * 15, // Convertir horas a euros
+    status: supabaseBalance.balance >= 0 ? 'approved' : 'pending',
+    assignments_completed: 0, // No disponible en Supabase
+    routes_completed: 0, // No disponible en Supabase
+    created_at: supabaseBalance.created_at || new Date().toISOString(),
+    updated_at: supabaseBalance.updated_at || new Date().toISOString(),
+  };
+};
 
 export default function BalancesScreen() {
   const [balances, setBalances] = useState<Balance[]>([]);
@@ -22,17 +52,19 @@ export default function BalancesScreen() {
   const loadBalances = useCallback(async () => {
     try {
       setError(null);
-      const response = await getBalances(filters);
+      const response = await getWorkerBalances({
+        year: filters.period_from ? new Date(filters.period_from).getFullYear() : undefined,
+        month: filters.period_from ? (new Date(filters.period_from).getMonth() + 1).toString().padStart(2, '0') : undefined,
+      });
       
       if (response.error) {
-        setError(response.error);
-        Alert.alert('Error', response.error);
+        setError('Error al cargar balances');
+        Alert.alert('Error', 'No se pudieron cargar los balances');
         return;
       }
 
-      if (response.data) {
-        setBalances(response.data.data);
-      }
+      const adaptedBalances = response.data.map(adaptSupabaseBalance);
+      setBalances(adaptedBalances);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       setError(errorMessage);

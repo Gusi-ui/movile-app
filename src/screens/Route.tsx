@@ -5,12 +5,14 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from 'react-native';
 
 import React, { useEffect, useState } from 'react';
 
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { getRoutes } from '../lib/api';
+import { Route } from '../types/database';
 
 interface RouteStop {
   id: string;
@@ -22,7 +24,7 @@ interface RouteStop {
 }
 
 export default function RouteScreen(): React.JSX.Element {
-  const { user } = useAuth();
+  const { state } = useAuth();
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [totalDistance, setTotalDistance] = useState<string>('0 km');
@@ -30,10 +32,10 @@ export default function RouteScreen(): React.JSX.Element {
 
   useEffect(() => {
     loadTodayRoute();
-  }, [user]);
+  }, [state.isAuthenticated]);
 
   const loadTodayRoute = async (): Promise<void> => {
-    if (!user?.email) {
+    if (!state.isAuthenticated) {
       setLoading(false);
       return;
     }
@@ -41,93 +43,21 @@ export default function RouteScreen(): React.JSX.Element {
     try {
       setLoading(true);
 
-      // Buscar trabajadora por email
-      const { data: workerData } = await supabase
-        .from('workers')
-        .select('id')
-        .ilike('email', user.email)
-        .maybeSingle();
+      // Usar la API mock para obtener rutas
+      const response = await getRoutes({
+        status: ['active']
+      });
 
-      if (!workerData) {
-        setLoading(false);
-        return;
-      }
-
-      const todayKey = new Date().toISOString().split('T')[0];
-
-      // Obtener asignaciones de hoy con información de usuarios
-      const { data: assignments } = await supabase
-        .from('assignments')
-        .select(
-          `
-          id,
-          schedule,
-          assignment_type,
-          users!inner(
-            id,
-            name,
-            surname,
-            address
-          )
-        `
-        )
-        .eq('worker_id', workerData.id)
-        .eq('status', 'active')
-        .lte('start_date', todayKey)
-        .or(`end_date.is.null,end_date.gte.${todayKey}`);
-
-      if (assignments) {
-        // Procesar y ordenar paradas por horario
-        const stops: RouteStop[] = [];
-
-        assignments.forEach((assignment, index) => {
-          const schedule =
-            typeof assignment.schedule === 'string'
-              ? JSON.parse(assignment.schedule)
-              : assignment.schedule;
-
-          // Obtener horarios de hoy
-          const today = new Date().getDay();
-          const dayNames = [
-            'sunday',
-            'monday',
-            'tuesday',
-            'wednesday',
-            'thursday',
-            'friday',
-            'saturday',
-          ];
-          const dayName = dayNames[today];
-
-          const dayConfig = schedule?.[dayName as keyof typeof schedule];
-          const timeSlots = dayConfig?.timeSlots || [];
-
-          if (timeSlots.length > 0) {
-            const firstSlot = timeSlots[0];
-            const user = Array.isArray(assignment.users)
-              ? assignment.users[0]
-              : assignment.users;
-            const userName =
-              `${user?.name || ''} ${user?.surname || ''}`.trim();
-            const address = user?.address || 'Dirección no disponible';
-
-            stops.push({
-              id: assignment.id,
-              userName,
-              address,
-              timeSlot: `${firstSlot.start} - ${firstSlot.end}`,
-              status: 'pending',
-              order: index + 1,
-            });
-          }
-        });
-
-        // Ordenar por hora de inicio
-        stops.sort((a, b) => {
-          const timeA = a.timeSlot.split(' - ')[0] || '';
-          const timeB = b.timeSlot.split(' - ')[0] || '';
-          return timeA.localeCompare(timeB);
-        });
+      if (response.data && response.data.data && response.data.data.length > 0) {
+        // Convertir rutas a paradas de ruta
+        const stops: RouteStop[] = response.data.data.map((route: Route, index: number) => ({
+          id: route.id,
+          userName: `Usuario ${index + 1}`,
+          address: route.description || 'Dirección no disponible',
+          timeSlot: `${8 + index}:00 - ${9 + index}:00`,
+          status: 'pending' as const,
+          order: index + 1,
+        }));
 
         setRouteStops(stops);
 

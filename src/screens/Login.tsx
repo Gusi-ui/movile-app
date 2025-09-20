@@ -5,7 +5,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginScreen(): React.JSX.Element {
-  const { signIn, loading } = useAuth();
+  const { state, login } = useAuth();
+  const { isLoading } = state;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -13,9 +14,12 @@ export default function LoginScreen(): React.JSX.Element {
   const handleLogin = async (): Promise<void> => {
     if (submitting) return;
     setSubmitting(true);
-    const { error } = await signIn(email.trim(), password);
+    try {
+      await login({ email: email.trim(), password });
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Error de autenticación');
+    }
     setSubmitting(false);
-    if (error !== null) Alert.alert('Error', error);
   };
 
   return (
@@ -37,7 +41,7 @@ export default function LoginScreen(): React.JSX.Element {
         onChangeText={setPassword}
       />
       <Button
-        title={submitting || loading ? 'Entrando…' : 'Entrar'}
+        title={submitting || isLoading ? 'Entrando…' : 'Entrar'}
         onPress={handleLogin}
       />
     </View>

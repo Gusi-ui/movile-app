@@ -11,11 +11,12 @@ import {
   ScrollView,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { shadowStyles } from '../utils/shadows';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, state } = useAuth();
+  const { login, state, clearAllCache } = useAuth();
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -48,7 +49,6 @@ export default function LoginScreen() {
           <Text style={styles.logo}>SAD LAS</Text>
           <Text style={styles.subtitle}>Worker App</Text>
         </View>
-
         <View style={styles.formContainer}>
           <Text style={styles.title}>Iniciar Sesión</Text>
 
@@ -82,7 +82,6 @@ export default function LoginScreen() {
               <Text style={styles.errorText}>{state.error}</Text>
             </View>
           )}
-
           <TouchableOpacity
             style={[styles.button, state.isLoading && styles.buttonDisabled]}
             onPress={handleLogin}
@@ -92,8 +91,14 @@ export default function LoginScreen() {
               {state.isLoading ? 'Iniciando...' : 'Iniciar Sesión'}
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.clearCacheButton]}
+            onPress={clearAllCache}
+          >
+            <Text style={styles.clearCacheButtonText}>🧹 LIMPIAR CACHÉ COMPLETO</Text>
+            <Text style={styles.clearCacheSubtext}>Eliminar datos de María García</Text>
+          </TouchableOpacity>
         </View>
-
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             Aplicación para trabajadores SAD LAS
@@ -142,14 +147,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 12,
     padding: 24,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    ...shadowStyles.card,
   },
   title: {
     fontSize: 24,
@@ -210,5 +208,27 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontSize: 14,
     textAlign: 'center',
+  },
+  clearCacheButton: {
+    backgroundColor: '#dc3545',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    marginTop: 20,
+    alignItems: 'center',
+    boxShadow: '0px 2px 3.84px rgba(0, 0, 0, 0.25)',
+    elevation: 5,
+  },
+  clearCacheButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  clearCacheSubtext: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '400',
+    opacity: 0.8,
+    marginTop: 2,
   },
 });

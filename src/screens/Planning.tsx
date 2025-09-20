@@ -41,7 +41,8 @@ interface DayInfo {
 }
 
 export default function PlanningScreen(): React.JSX.Element {
-  const { user } = useAuth();
+  const { state } = useAuth();
+  const { currentWorker } = state;
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -72,7 +73,7 @@ export default function PlanningScreen(): React.JSX.Element {
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      const email = user?.email ?? '';
+      const email = currentWorker?.email ?? '';
       if (email.trim() === '') {
         setAssignments([]);
         setHolidays([]);
@@ -92,7 +93,7 @@ export default function PlanningScreen(): React.JSX.Element {
         return;
       }
 
-      const workerId = workerData.id;
+      const workerId = (workerData as { id: string }).id;
 
       // Fechas del mes seleccionado
       const startDate = new Date(selectedYear, selectedMonth, 1);
@@ -142,7 +143,7 @@ export default function PlanningScreen(): React.JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [user?.email, selectedMonth, selectedYear]);
+  }, [currentWorker?.email, selectedMonth, selectedYear]);
 
   useEffect(() => {
     loadData().catch(() => setLoading(false));

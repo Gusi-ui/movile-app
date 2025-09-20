@@ -39,7 +39,8 @@ type InfoCard = {
 };
 
 export default function TodayScreen(): React.JSX.Element {
-  const { user, session } = useAuth();
+  const { state } = useAuth();
+  const { currentWorker } = state;
   const { scheduleServiceReminders, notifyAssignmentUpdate } =
     useNotifications();
   const [rows, setRows] = useState<Row[]>([]);
@@ -64,7 +65,7 @@ export default function TodayScreen(): React.JSX.Element {
     const load = async (): Promise<void> => {
       setLoading(true);
       try {
-        const email = user?.email ?? '';
+        const email = currentWorker?.email ?? '';
         if (email.trim() === '') {
           setRows([]);
           return;
@@ -74,12 +75,13 @@ export default function TodayScreen(): React.JSX.Element {
           .select('id')
           .eq('email', email)
           .single();
-        const workerId =
-          werr === null ? (w?.id as string | undefined) : undefined;
-        if (workerId === undefined) {
+        
+        if (werr !== null || !w) {
           setRows([]);
           return;
         }
+        
+        const workerId = (w as { id: string }).id;
 
         // Cargar asignaciones con información del usuario
         const { data, error } = await supabase
@@ -173,7 +175,7 @@ export default function TodayScreen(): React.JSX.Element {
       }
     };
     load().catch(() => setLoading(false));
-  }, [todayKey, user?.email, completedIds]);
+  }, [todayKey, currentWorker?.email, completedIds]);
 
   const dayKey = useMemo(() => {
     const d = new Date();
@@ -300,16 +302,17 @@ export default function TodayScreen(): React.JSX.Element {
       next.add(assignmentId);
       return next;
     });
-    const { error } = await supabase.from('system_activities').insert({
-      user_id: session?.user?.id ?? null,
-      activity_type: 'service_completed',
-      entity_type: 'assignment',
-      entity_id: assignmentId,
-      description: 'Servicio completado desde app móvil',
-    });
-    if (error !== null) {
-      Alert.alert('Aviso', 'No se pudo registrar la actividad (permisos).');
-    }
+    // TODO: Implementar logging de actividades cuando la tabla system_activities esté disponible
+    // const { error } = await supabase.from('system_activities').insert({
+    //   user_id: currentWorker?.id ?? null,
+    //   activity_type: 'service_completed',
+    //   entity_type: 'assignment',
+    //   entity_id: assignmentId,
+    //   description: 'Servicio completado desde app móvil',
+    // });
+    // if (error !== null) {
+    //   Alert.alert('Aviso', 'No se pudo registrar la actividad (permisos).');
+    // }
   };
 
   const quickActions: QuickAction[] = [
@@ -367,28 +370,28 @@ export default function TodayScreen(): React.JSX.Element {
     {
       id: '1',
       title: 'Servicios Hoy',
-      value: stats.totalServices.toString(),
+      value: (stats.totalServices || 0).toString(),
       subtitle: 'Total programados',
       color: '#3b82f6',
     },
     {
       id: '2',
       title: 'Completados',
-      value: stats.completedServices.toString(),
+      value: (stats.completedServices || 0).toString(),
       subtitle: 'Servicios finalizados',
       color: '#22c55e',
     },
     {
       id: '3',
       title: 'Horas',
-      value: `${stats.totalHours}h`,
+      value: `${stats.totalHours || 0}h`,
       subtitle: 'Tiempo total',
       color: '#f97316',
     },
     {
       id: '4',
       title: 'Pendientes',
-      value: stats.pendingServices.toString(),
+      value: (stats.pendingServices || 0).toString(),
       subtitle: 'Por completar',
       color: '#f59e0b',
     },
@@ -419,11 +422,11 @@ export default function TodayScreen(): React.JSX.Element {
           {slots.length > 0 ? (
             slots.map((s, idx) => (
               <Text key={`${item.id}-slot-${idx}`} style={styles.slot}>
-                🕐 {s.start} - {s.end}
+                ⏰ {s.start} - {s.end}
               </Text>
             ))
           ) : (
-            <Text style={styles.slot}>—</Text>
+            <Text style={styles.slot}>Sin horarios</Text>
           )}
         </View>
 

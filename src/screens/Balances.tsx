@@ -4,6 +4,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  StatusBar,
 } from 'react-native';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -13,27 +14,38 @@ import { supabase } from '../lib/supabase';
 
 interface MonthlyBalance {
   id: string;
+  worker_id: string;
   year: number;
   month: number;
   total_hours: number;
   worked_hours: number;
   holiday_hours: number;
   balance: number;
+  services_completed: number;
+  clients_served: number;
+  earnings: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
-interface Assignment {
+interface ServiceAssignment {
   id: string;
-  assignment_type: string;
+  worker_id?: string;
+  client_name: string;
+  service_type: string;
   weekly_hours: number;
   start_date: string;
   end_date: string | null;
-  user_name: string;
+  hourly_rate: number;
+  status?: string;
 }
 
+
+
 export default function BalancesScreen(): React.JSX.Element {
-  const { user } = useAuth();
+  const { state } = useAuth();
   const [balances, setBalances] = useState<MonthlyBalance[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [assignments, setAssignments] = useState<ServiceAssignment[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [selectedYear, setSelectedYear] = useState<number>(
     new Date().getFullYear()
@@ -60,77 +72,76 @@ export default function BalancesScreen(): React.JSX.Element {
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      const email = user?.email ?? '';
+      const email = state.currentWorker?.email ?? '';
       if (email.trim() === '') {
         setBalances([]);
         setAssignments([]);
         return;
       }
 
-      // Buscar trabajadora por email
-      const { data: workerData, error: workerError } = await supabase
+      // Buscar el trabajador por email
+      const { data: worker, error: workerError } = await supabase
         .from('workers')
         .select('id')
         .eq('email', email)
         .single();
 
-      if (workerError !== null || workerData === null) {
+      if (workerError || !worker) {
+        console.error('Error finding worker:', workerError);
         setBalances([]);
         setAssignments([]);
         return;
       }
 
-      const workerId = workerData.id;
+      const workerId = (worker as any).id;
 
-      // Cargar balances de horas
-      const { data: balanceData, error: balanceError } = await supabase
-        .from('hours_balances')
+      // Cargar balances mensuales para el año seleccionado
+      const { data: monthlyBalances, error: balancesError } = await supabase
+        .from('monthly_balances')
         .select('*')
         .eq('worker_id', workerId)
-        .order('year', { ascending: false })
+        .eq('year', selectedYear)
         .order('month', { ascending: false });
 
-      if (balanceError === null && balanceData !== null) {
-        setBalances(balanceData);
+      if (balancesError) {
+        console.error('Error loading balances:', balancesError);
+        setBalances([]);
+      } else {
+        setBalances((monthlyBalances as MonthlyBalance[]) || []);
       }
 
       // Cargar asignaciones activas para el mes seleccionado
-      const startDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
-      const endDate =
-        selectedMonth === 12
-          ? `${selectedYear + 1}-01-01`
-          : `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`;
+      const startDate = new Date(selectedYear, selectedMonth - 1, 1);
+      const endDate = new Date(selectedYear, selectedMonth, 0);
 
-      const { data: assignmentData, error: assignmentError } = await supabase
+      const { data: activeAssignments, error: assignmentsError } = await supabase
         .from('assignments')
-        .select(
-          `
+        .select(`
           id,
-          assignment_type,
+          client_name,
+          service_type,
           weekly_hours,
           start_date,
           end_date,
-          users!inner(name, surname)
-        `
-        )
+          hourly_rate
+        `)
         .eq('worker_id', workerId)
-        .lte('start_date', endDate)
-        .or(`end_date.is.null,end_date.gte.${startDate}`);
+        .eq('status', 'active')
+        .lte('start_date', endDate.toISOString().split('T')[0])
+        .or(`end_date.is.null,end_date.gte.${startDate.toISOString().split('T')[0]}`);
 
-      if (assignmentError === null && assignmentData !== null) {
-        const processedAssignments = assignmentData.map((item: any) => ({
-          ...item,
-          user_name:
-            `${item.users?.name ?? ''} ${item.users?.surname ?? ''}`.trim(),
-        }));
-        setAssignments(processedAssignments);
+      if (assignmentsError) {
+        console.error('Error loading assignments:', assignmentsError);
+        setAssignments([]);
+      } else {
+        setAssignments((activeAssignments as ServiceAssignment[]) || []);
       }
     } catch (error) {
       console.error('Error loading balances:', error);
     } finally {
       setLoading(false);
     }
-  }, [user?.email, selectedYear, selectedMonth]);
+  }, [state.currentWorker?.email, selectedYear, selectedMonth]);
 
   useEffect(() => {
     loadData().catch(() => setLoading(false));
@@ -152,6 +163,19 @@ export default function BalancesScreen(): React.JSX.Element {
     if (balance > 0) return '📈';
     if (balance < 0) return '📉';
     return '📊';
+  };
+
+  const getServiceIcon = (serviceType: string): string => {
+    switch (serviceType) {
+      case 'Cuidado Personal':
+        return '👩‍⚕️';
+      case 'Limpieza Doméstica':
+        return '🧹';
+      case 'Acompañamiento':
+        return '🤝';
+      default:
+        return '🏠';
+    }
   };
 
   const renderMonthSelector = () => (
@@ -197,175 +221,180 @@ export default function BalancesScreen(): React.JSX.Element {
       return (
         <View style={styles.balanceCard}>
           <Text style={styles.balanceCardTitle}>
-            {getBalanceIcon(0)} Balance de {monthNames[selectedMonth - 1]}
+            📊 Resumen de {monthNames[selectedMonth - 1]}
           </Text>
-          <Text style={styles.noDataText}>
-            No hay datos de balance para este mes
-          </Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>
+              No hay datos disponibles para este mes
+            </Text>
+          </View>
         </View>
       );
     }
 
-    const balance = currentMonthBalance.balance;
-    const balanceColor = getBalanceColor(balance);
-    const balanceIcon = getBalanceIcon(balance);
+    const balanceColor = getBalanceColor(currentMonthBalance.balance);
+    const balanceIcon = getBalanceIcon(currentMonthBalance.balance);
 
     return (
       <View style={styles.balanceCard}>
         <Text style={styles.balanceCardTitle}>
-          {balanceIcon} Balance de {monthNames[selectedMonth - 1]}
+          {balanceIcon} Resumen de {monthNames[selectedMonth - 1]}
         </Text>
-
+        
         <View style={styles.balanceStatsContainer}>
           <View style={styles.balanceStat}>
             <Text style={styles.balanceStatValue}>
-              {currentMonthBalance.total_hours.toFixed(1)}h
-            </Text>
-            <Text style={styles.balanceStatLabel}>Horas Asignadas</Text>
-          </View>
-
-          <View style={styles.balanceStat}>
-            <Text style={styles.balanceStatValue}>
-              {currentMonthBalance.worked_hours.toFixed(1)}h
+              {currentMonthBalance.worked_hours}h
             </Text>
             <Text style={styles.balanceStatLabel}>Horas Trabajadas</Text>
           </View>
-
+          
           <View style={styles.balanceStat}>
             <Text style={styles.balanceStatValue}>
-              {currentMonthBalance.holiday_hours.toFixed(1)}h
+              {currentMonthBalance.services_completed}
             </Text>
-            <Text style={styles.balanceStatLabel}>Horas Festivos</Text>
+            <Text style={styles.balanceStatLabel}>Servicios Completados</Text>
+          </View>
+          
+          <View style={styles.balanceStat}>
+            <Text style={styles.balanceStatValue}>
+              {currentMonthBalance.clients_served}
+            </Text>
+            <Text style={styles.balanceStatLabel}>Clientes Atendidos</Text>
           </View>
         </View>
 
-        <View
-          style={[styles.finalBalanceContainer, { borderColor: balanceColor }]}
-        >
+        <View style={[styles.finalBalanceContainer, { borderColor: balanceColor }]}>
           <Text style={[styles.finalBalanceLabel, { color: balanceColor }]}>
-            Balance Final
+            Ingresos del Mes
           </Text>
           <Text style={[styles.finalBalanceValue, { color: balanceColor }]}>
-            {balance > 0 ? '+' : ''}
-            {balance.toFixed(1)}h
+            €{currentMonthBalance.earnings.toFixed(2)}
           </Text>
           <Text style={styles.finalBalanceDescription}>
-            {balance > 0
-              ? 'Horas extras trabajadas'
-              : balance < 0
-                ? 'Horas pendientes de completar'
-                : 'Balance equilibrado'}
+            Balance de horas: {currentMonthBalance.balance > 0 ? '+' : ''}{currentMonthBalance.balance}h
           </Text>
         </View>
       </View>
     );
   };
 
-  const renderAssignmentsList = () => (
-    <View style={styles.assignmentsContainer}>
-      <Text style={styles.assignmentsTitle}>
-        📋 Asignaciones de {monthNames[selectedMonth - 1]}
-      </Text>
+  const renderAssignments = () => {
+    if (assignments.length === 0) {
+      return (
+        <View style={styles.assignmentsContainer}>
+          <Text style={styles.assignmentsTitle}>
+            👥 Asignaciones Activas
+          </Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>
+              No hay asignaciones activas para este mes
+            </Text>
+          </View>
+        </View>
+      );
+    }
 
-      {assignments.length > 0 ? (
-        assignments.map((assignment) => (
+    return (
+      <View style={styles.assignmentsContainer}>
+        <Text style={styles.assignmentsTitle}>
+          👥 Asignaciones Activas ({assignments.length})
+        </Text>
+        {assignments.map((assignment) => (
           <View key={assignment.id} style={styles.assignmentCard}>
             <View style={styles.assignmentHeader}>
               <Text style={styles.assignmentType}>
-                {assignment.assignment_type.toUpperCase()}
+                {getServiceIcon(assignment.service_type)} {assignment.service_type}
               </Text>
               <Text style={styles.assignmentHours}>
                 {assignment.weekly_hours}h/semana
               </Text>
             </View>
-
-            <Text style={styles.assignmentUser}>👤 {assignment.user_name}</Text>
-
+            <Text style={styles.assignmentUser}>
+              Cliente: {assignment.client_name}
+            </Text>
             <Text style={styles.assignmentPeriod}>
-              📅 {assignment.start_date} → {assignment.end_date ?? 'Indefinido'}
+              Tarifa: €{assignment.hourly_rate}/hora
+            </Text>
+            <Text style={styles.assignmentPeriod}>
+              Desde: {new Date(assignment.start_date).toLocaleDateString('es-ES')}
             </Text>
           </View>
-        ))
-      ) : (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>
-            No hay asignaciones para este mes
-          </Text>
-        </View>
-      )}
-    </View>
-  );
+        ))}
+      </View>
+    );
+  };
 
-  const renderHistoryList = () => (
-    <View style={styles.historyContainer}>
-      <Text style={styles.historyTitle}>📊 Historial de Balances</Text>
+  const renderHistory = () => {
+    const historyBalances = balances.filter(
+      (b) => !(b.year === selectedYear && b.month === selectedMonth)
+    );
 
-      {balances.length > 0 ? (
-        balances.slice(0, 6).map((balance) => {
-          const balanceColor = getBalanceColor(balance.balance);
-          const isCurrentMonth =
-            balance.year === selectedYear && balance.month === selectedMonth;
+    if (historyBalances.length === 0) {
+      return null;
+    }
 
-          return (
-            <TouchableOpacity
-              key={`${balance.year}-${balance.month}`}
-              style={[
-                styles.historyCard,
-                isCurrentMonth && styles.historyCardActive,
-              ]}
-              onPress={() => {
-                setSelectedYear(balance.year);
-                setSelectedMonth(balance.month);
-              }}
-            >
-              <View style={styles.historyCardHeader}>
-                <Text style={styles.historyCardMonth}>
-                  {monthNames[balance.month - 1]} {balance.year}
-                </Text>
-                <Text
-                  style={[styles.historyCardBalance, { color: balanceColor }]}
-                >
-                  {balance.balance > 0 ? '+' : ''}
-                  {balance.balance.toFixed(1)}h
-                </Text>
-              </View>
-
-              <View style={styles.historyCardStats}>
-                <Text style={styles.historyCardStat}>
-                  Trabajadas: {balance.worked_hours.toFixed(1)}h
-                </Text>
-                <Text style={styles.historyCardStat}>
-                  Asignadas: {balance.total_hours.toFixed(1)}h
-                </Text>
-              </View>
-            </TouchableOpacity>
-          );
-        })
-      ) : (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>
-            No hay historial de balances disponible
-          </Text>
-        </View>
-      )}
-    </View>
-  );
+    return (
+      <View style={styles.historyContainer}>
+        <Text style={styles.historyTitle}>📈 Historial de Meses</Text>
+        {historyBalances.map((balance) => (
+          <TouchableOpacity
+            key={balance.id}
+            style={styles.historyCard}
+            onPress={() => {
+              setSelectedYear(balance.year);
+              setSelectedMonth(balance.month);
+            }}
+          >
+            <View style={styles.historyCardHeader}>
+              <Text style={styles.historyCardMonth}>
+                {monthNames[balance.month - 1]} {balance.year}
+              </Text>
+              <Text
+                style={[
+                  styles.historyCardBalance,
+                  { color: getBalanceColor(balance.balance) },
+                ]}
+              >
+                €{balance.earnings.toFixed(2)}
+              </Text>
+            </View>
+            <View style={styles.historyCardStats}>
+              <Text style={styles.historyCardStat}>
+                {balance.worked_hours}h trabajadas
+              </Text>
+              <Text style={styles.historyCardStat}>
+                {balance.services_completed} servicios
+              </Text>
+              <Text style={styles.historyCardStat}>
+                {balance.clients_served} clientes
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
 
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.loadingText}>Cargando balances...</Text>
+        <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+        <Text style={styles.loadingText}>Cargando información...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {renderMonthSelector()}
-      {renderBalanceCard()}
-      {renderAssignmentsList()}
-      {renderHistoryList()}
-    </ScrollView>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+      <ScrollView>
+        {renderMonthSelector()}
+        {renderBalanceCard()}
+        {renderAssignments()}
+        {renderHistory()}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -467,12 +496,6 @@ const styles = StyleSheet.create({
     color: '#64748b',
     textAlign: 'center',
   },
-  noDataText: {
-    fontSize: 16,
-    color: '#64748b',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
   assignmentsContainer: {
     margin: 16,
     marginTop: 0,
@@ -539,10 +562,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  historyCardActive: {
-    borderColor: '#3b82f6',
-    borderWidth: 2,
   },
   historyCardHeader: {
     flexDirection: 'row',

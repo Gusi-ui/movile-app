@@ -2,15 +2,24 @@
  * Tipos TypeScript para la aplicación móvil SAD LAS
  */
 
-// Worker Types
+// Worker Types - Coincide con la tabla workers de Supabase
 export interface Worker {
   id: string;
   email: string;
   name: string;
-  role: 'worker' | 'admin' | 'super_admin';
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  surname: string;
+  phone: string;
+  dni: string;
+  worker_type: string;
+  role: string;
+  is_active: boolean | null;
+  monthly_contracted_hours: number;
+  weekly_contracted_hours: number;
+  address: string | null;
+  postal_code: string | null;
+  city: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 // Authentication Types
@@ -36,4 +45,5 @@ export type RootStackParamList = {
   Route: undefined;
   Profile: undefined;
   Settings: undefined;
+  Calendar: undefined;
 };

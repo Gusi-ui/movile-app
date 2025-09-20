@@ -1,0 +1,76 @@
+name: Build and Deploy
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check for EXPO_TOKEN
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "You must provide an EXPO_TOKEN secret linked to this project's Expo account in this repo's secrets. Learn more: https://docs.expo.dev/eas-update/github-actions"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+          cache: npm
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create production environment file
+        run: |
+          echo "EXPO_PUBLIC_ENV=production" > .env.production
+          echo "EXPO_PUBLIC_API_URL=" >> .env.production
+          echo "EXPO_PUBLIC_MOCK_API=false" >> .env.production
+          echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}" >> .env.production
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" >> .env.production
+          echo "EXPO_PUBLIC_PUSH_NOTIFICATIONS_ENABLED=true" >> .env.production
+          echo "EXPO_PUBLIC_LOCATION_TRACKING_ENABLED=true" >> .env.production
+          echo "EXPO_PUBLIC_LOG_LEVEL=error" >> .env.production
+          echo "EXPO_PUBLIC_CACHE_ENABLED=true" >> .env.production
+          echo "EXPO_PUBLIC_DEBUG_MODE=false" >> .env.production
+
+      - name: Build for internal distribution (on release)
+        if: github.event_name == 'release'
+        run: |
+          eas build --platform all --profile production-internal --non-interactive --no-wait
+          
+      - name: Build preview (on main push)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          eas build --platform all --profile preview --non-interactive --no-wait
+
+      - name: Comment build URL on release
+        if: github.event_name == 'release'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.payload.release.id,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚀 Build iniciado para la release. Revisa el progreso en [Expo Dashboard](https://expo.dev/accounts/${{ github.repository_owner }}/projects/${{ github.event.repository.name }}/builds)'
+            })

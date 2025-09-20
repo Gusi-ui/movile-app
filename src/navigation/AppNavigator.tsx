@@ -8,6 +8,8 @@ import LoginScreen from '../screens/LoginScreen';
 import AssignmentsScreen from '../screens/AssignmentsScreen';
 import AssignmentDetailScreen from '../screens/AssignmentDetailScreen';
 import BalancesScreen from '../screens/BalancesScreen';
+import CalendarScreen from '../screens/CalendarScreen';
+import RouteScreen from '../screens/Route';
 import { RootStackParamList } from '../types';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -51,13 +53,18 @@ export default function AppNavigator() {
               options={{ title: 'Balances' }}
             />
             <Stack.Screen
+              name="Calendar"
+              component={CalendarScreen}
+              options={{ title: 'Calendario' }}
+            />
+            <Stack.Screen
               name="Notes"
               component={HomeScreen}
               options={{ title: 'Notas' }}
             />
             <Stack.Screen
               name="Route"
-              component={HomeScreen}
+              component={RouteScreen}
               options={{ title: 'Ruta' }}
             />
             <Stack.Screen

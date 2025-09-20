@@ -36,7 +36,7 @@ interface UserSettings {
 }
 
 export default function ProfileScreen(): React.JSX.Element {
-  const { user, signOut } = useAuth();
+  const { state, logout } = useAuth();
   const {
     permissionStatus,
     requestPermissions,
@@ -58,7 +58,7 @@ export default function ProfileScreen(): React.JSX.Element {
   const loadWorkerInfo = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      const email = user?.email ?? '';
+      const email = state.currentWorker?.email ?? '';
       if (email.trim() === '') {
         setWorkerInfo(null);
         return;
@@ -78,7 +78,7 @@ export default function ProfileScreen(): React.JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [user?.email]);
+  }, [state.currentWorker?.email]);
 
   useEffect(() => {
     loadWorkerInfo().catch(() => setLoading(false));
@@ -98,7 +98,7 @@ export default function ProfileScreen(): React.JSX.Element {
           style: 'destructive',
           onPress: async () => {
             try {
-              await signOut();
+              await logout();
             } catch (error) {
               Alert.alert('Error', 'No se pudo cerrar la sesión');
             }
@@ -180,7 +180,7 @@ export default function ProfileScreen(): React.JSX.Element {
           {workerInfo ? `${workerInfo.name} ${workerInfo.surname}` : 'Usuario'}
         </Text>
         <Text style={styles.profileEmail}>
-          {workerInfo?.email || user?.email || ''}
+          {workerInfo?.email || state.currentWorker?.email || ''}
         </Text>
         <Text style={styles.profileType}>
           {workerInfo ? getWorkerTypeLabel(workerInfo.worker_type) : ''}

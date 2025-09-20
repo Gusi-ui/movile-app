@@ -24,7 +24,8 @@ interface UpcomingService {
 type ViewMode = 'tomorrow' | 'thisWeek' | 'thisMonth';
 
 export default function UpcomingScreen(): React.JSX.Element {
-  const { user } = useAuth();
+  const { state } = useAuth();
+  const { currentWorker } = state;
   const [upcomingServices, setUpcomingServices] = useState<UpcomingService[]>(
     []
   );
@@ -38,10 +39,10 @@ export default function UpcomingScreen(): React.JSX.Element {
 
   useEffect(() => {
     loadUpcomingServices();
-  }, [user, viewMode]);
+  }, [currentWorker, viewMode]);
 
   const loadUpcomingServices = async (): Promise<void> => {
-    if (!user?.email) {
+    if (!currentWorker?.email) {
       setLoading(false);
       return;
     }
@@ -53,7 +54,7 @@ export default function UpcomingScreen(): React.JSX.Element {
       const { data: workerData } = await supabase
         .from('workers')
         .select('id')
-        .ilike('email', user.email)
+        .ilike('email', currentWorker.email)
         .maybeSingle();
 
       if (!workerData) {
@@ -74,7 +75,7 @@ export default function UpcomingScreen(): React.JSX.Element {
           users!inner(name, surname)
         `
         )
-        .eq('worker_id', workerData.id)
+        .eq('worker_id', (workerData as { id: string }).id)
         .eq('status', 'active');
 
       if (assignments) {

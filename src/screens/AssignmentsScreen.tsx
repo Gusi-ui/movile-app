@@ -11,9 +11,51 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { Assignment, AssignmentFilters } from '../types/database';
+import { Assignment, AssignmentFilters, AssignmentStatus } from '../types/database';
 import { RootStackParamList } from '../types';
-import { getAssignments } from '../lib/api';
+import { getWorkerAssignments } from '../lib/supabase';
+import { Database } from '../types/supabase';
+
+type SupabaseAssignment = Database['public']['Tables']['assignments']['Row'];
+
+// Adaptador para convertir datos de Supabase al formato esperado
+const adaptSupabaseAssignment = (supabaseAssignment: SupabaseAssignment): Assignment => {
+  // Mapear status de string a AssignmentStatus
+  const mapStatus = (status: string): AssignmentStatus => {
+    switch (status) {
+      case 'pending': return 'pending';
+      case 'assigned': return 'assigned';
+      case 'in_progress': return 'in_progress';
+      case 'completed': return 'completed';
+      case 'cancelled': return 'cancelled';
+      default: return 'pending';
+    }
+  };
+
+  // Mapear priority de number a string
+  const mapPriority = (priority: number): 'low' | 'medium' | 'high' | 'urgent' => {
+    if (priority <= 1) return 'low';
+    if (priority <= 2) return 'medium';
+    if (priority <= 3) return 'high';
+    return 'urgent';
+  };
+
+  return {
+    id: supabaseAssignment.id,
+    title: supabaseAssignment.assignment_type || 'Sin título',
+    description: supabaseAssignment.notes || 'Sin descripción',
+    status: mapStatus(supabaseAssignment.status),
+    priority: mapPriority(supabaseAssignment.priority),
+    worker_id: supabaseAssignment.worker_id,
+    assigned_by: supabaseAssignment.user_id,
+    address: '', // No disponible en Supabase
+    assigned_at: supabaseAssignment.start_date,
+    due_date: supabaseAssignment.end_date || undefined,
+    estimated_duration: supabaseAssignment.weekly_hours * 60, // convertir horas a minutos
+    created_at: supabaseAssignment.created_at || new Date().toISOString(),
+    updated_at: supabaseAssignment.updated_at || new Date().toISOString(),
+  };
+};
 
 type AssignmentsScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -31,17 +73,20 @@ export default function AssignmentsScreen() {
   const loadAssignments = useCallback(async () => {
     try {
       setError(null);
-      const response = await getAssignments(filters);
+      const response = await getWorkerAssignments({
+        status: filters.status,
+        date_from: filters.date_from,
+        date_to: filters.date_to,
+      });
       
       if (response.error) {
-        setError(response.error);
-        Alert.alert('Error', response.error);
+        setError('Error al cargar asignaciones');
+        Alert.alert('Error', 'No se pudieron cargar las asignaciones');
         return;
       }
 
-      if (response.data) {
-        setAssignments(response.data.data);
-      }
+      const adaptedAssignments = response.data.map(adaptSupabaseAssignment);
+      setAssignments(adaptedAssignments);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       setError(errorMessage);
@@ -85,18 +130,33 @@ export default function AssignmentsScreen() {
   const getStatusText = (status: Assignment['status']) => {
     switch (status) {
       case 'pending':
-        return 'Pendiente';
+        return 'Programado';
       case 'assigned':
-        return 'Asignada';
+        return 'Asignado';
       case 'in_progress':
-        return 'En Progreso';
+        return 'En Servicio';
       case 'completed':
-        return 'Completada';
+        return 'Completado';
       case 'cancelled':
-        return 'Cancelada';
+        return 'Cancelado';
       default:
         return status;
     }
+  };
+
+  const getServiceIcon = (title: string) => {
+    if (title.toLowerCase().includes('cuidado personal') || title.toLowerCase().includes('higiene')) {
+      return '🛁';
+    } else if (title.toLowerCase().includes('limpieza')) {
+      return '🧹';
+    } else if (title.toLowerCase().includes('acompañamiento') || title.toLowerCase().includes('compañía')) {
+      return '👥';
+    } else if (title.toLowerCase().includes('medicación') || title.toLowerCase().includes('medicina')) {
+      return '💊';
+    } else if (title.toLowerCase().includes('comida') || title.toLowerCase().includes('cocina')) {
+      return '🍽️';
+    }
+    return '🏠';
   };
 
   const getPriorityColor = (priority: Assignment['priority']) => {
@@ -121,9 +181,9 @@ export default function AssignmentsScreen() {
       case 'high':
         return 'Alta';
       case 'medium':
-        return 'Media';
+        return 'Normal';
       case 'low':
-        return 'Baja';
+        return 'Flexible';
       default:
         return priority;
     }
@@ -146,9 +206,14 @@ export default function AssignmentsScreen() {
       onPress={() => handleAssignmentPress(item)}
     >
       <View style={styles.cardHeader}>
-        <Text style={styles.assignmentTitle} numberOfLines={2}>
-          {item.title}
-        </Text>
+        <View style={styles.titleContainer}>
+          <Text style={styles.serviceIcon}>
+            {getServiceIcon(item.title)}
+          </Text>
+          <Text style={styles.assignmentTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+        </View>
         <View style={styles.priorityBadge}>
           <Text
             style={[
@@ -288,12 +353,21 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 8,
   },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  serviceIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
   assignmentTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#1e293b',
     flex: 1,
-    marginRight: 8,
   },
   priorityBadge: {
     paddingHorizontal: 8,
