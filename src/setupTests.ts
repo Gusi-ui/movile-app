@@ -66,7 +66,7 @@ jest.mock('react-native-gesture-handler', () => {
     RectButton: View,
     BorderlessButton: View,
     FlatList: View,
-    gestureHandlerRootHOC: (component: any) => component,
+    gestureHandlerRootHOC: <T>(component: T): T => component,
     Directions: {},
   };
 });
@@ -80,4 +80,4 @@ jest.mock('expo-status-bar', () => ({
 declare const global: {
   __DEV__: boolean;
 };
-(global as any).__DEV__ = true;
+global.__DEV__ = true;
