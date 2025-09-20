@@ -28,10 +28,13 @@
   "dependencies": {
     "@expo/metro-runtime": "~5.0.4",
     "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/native": "^7.1.17",
     "@react-navigation/stack": "^7.4.7",
     "@supabase/supabase-js": "^2.57.4",
     "expo": "~53.0.22",
+    "expo-device": "~7.1.4",
+    "expo-notifications": "~0.31.4",
     "expo-status-bar": "~2.2.3",
     "react": "19.0.0",
     "react-dom": "19.0.0",
