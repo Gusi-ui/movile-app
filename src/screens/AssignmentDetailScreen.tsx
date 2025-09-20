@@ -13,11 +13,69 @@ import { useRoute } from '@react-navigation/native';
 import { RouteProp } from '@react-navigation/native';
 import { Assignment } from '../types/database';
 import { RootStackParamList } from '../types';
-import { getAssignmentDetail, updateAssignmentStatus } from '../lib/api';
+// Reemplazar API mock por Supabase real
+import {
+  getAssignmentDetail as getAssignmentDetailDb,
+  updateAssignmentStatus as updateAssignmentStatusDb,
+} from '../lib/supabase';
+import { Colors } from '../constants/colors';
+import { Database } from '../types/supabase';
 
-type AssignmentDetailRouteProp = RouteProp<RootStackParamList, 'AssignmentDetail'>;
+type AssignmentDetailRouteProp = RouteProp<
+  RootStackParamList,
+  'AssignmentDetail'
+>;
 
-export default function AssignmentDetailScreen() {
+// Tipo de fila de Supabase y adaptador al tipo de la app
+type SupabaseAssignment = Database['public']['Tables']['assignments']['Row'];
+
+const adaptSupabaseAssignment = (
+  supabaseAssignment: SupabaseAssignment
+): Assignment => {
+  const mapStatus = (status: string): Assignment['status'] => {
+    switch (status) {
+      case 'pending':
+        return 'pending';
+      case 'assigned':
+        return 'assigned';
+      case 'in_progress':
+        return 'in_progress';
+      case 'completed':
+        return 'completed';
+      case 'cancelled':
+        return 'cancelled';
+      default:
+        return 'pending';
+    }
+  };
+
+  const mapPriority = (priority: number): Assignment['priority'] => {
+    if (priority <= 1) return 'low';
+    if (priority <= 2) return 'medium';
+    if (priority <= 3) return 'high';
+    return 'urgent';
+  };
+
+  return {
+    id: supabaseAssignment.id,
+    title: supabaseAssignment.assignment_type || 'Sin título',
+    description: supabaseAssignment.notes || 'Sin descripción',
+    status: mapStatus(supabaseAssignment.status),
+    priority: mapPriority(supabaseAssignment.priority),
+    worker_id: supabaseAssignment.worker_id,
+    assigned_by: supabaseAssignment.user_id,
+    address: '',
+    assigned_at: supabaseAssignment.start_date,
+    ...(supabaseAssignment.end_date && {
+      due_date: supabaseAssignment.end_date,
+    }),
+    estimated_duration: supabaseAssignment.weekly_hours * 60,
+    created_at: supabaseAssignment.created_at || new Date().toISOString(),
+    updated_at: supabaseAssignment.updated_at || new Date().toISOString(),
+  };
+};
+
+export default function AssignmentDetailScreen(): React.ReactElement {
   const route = useRoute<AssignmentDetailRouteProp>();
   const { assignmentId } = route.params;
 
@@ -30,20 +88,13 @@ export default function AssignmentDetailScreen() {
     try {
       setLoading(true);
       setError(null);
-      
-      const response = await getAssignmentDetail(assignmentId);
-      
-      if (response.error) {
-        setError(response.error);
-        Alert.alert('Error', response.error);
-        return;
-      }
 
-      if (response.data) {
-        setAssignment(response.data);
-      }
+      const raw = await getAssignmentDetailDb(assignmentId);
+      const adapted = adaptSupabaseAssignment(raw);
+      setAssignment(adapted);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      const errorMessage =
+        err instanceof Error ? err.message : 'Error desconocido';
       setError(errorMessage);
       Alert.alert('Error', 'No se pudo cargar el detalle de la asignación');
     } finally {
@@ -55,7 +106,9 @@ export default function AssignmentDetailScreen() {
     loadAssignmentDetail();
   }, [loadAssignmentDetail]);
 
-  const handleStatusUpdate = async (newStatus: Assignment['status']) => {
+  const handleStatusUpdate = async (
+    newStatus: Assignment['status']
+  ): Promise<void> => {
     if (!assignment) return;
 
     Alert.alert(
@@ -65,22 +118,25 @@ export default function AssignmentDetailScreen() {
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Confirmar',
-          onPress: async () => {
+          onPress: async (): Promise<void> => {
             try {
               setUpdating(true);
-              
-              const response = await updateAssignmentStatus(assignment.id, newStatus);
-              
-              if (response.error) {
-                Alert.alert('Error', response.error);
-                return;
-              }
 
-              if (response.data) {
-                setAssignment(response.data);
+              const updatedRow = await updateAssignmentStatusDb(
+                assignment.id,
+                newStatus
+              );
+
+              if (updatedRow) {
+                const adapted = adaptSupabaseAssignment(
+                  updatedRow as SupabaseAssignment
+                );
+                setAssignment(adapted);
                 Alert.alert('Éxito', 'Estado actualizado correctamente');
+              } else {
+                Alert.alert('Error', 'No se pudo actualizar el estado');
               }
-            } catch (err) {
+            } catch {
               Alert.alert('Error', 'No se pudo actualizar el estado');
             } finally {
               setUpdating(false);
@@ -91,9 +147,12 @@ export default function AssignmentDetailScreen() {
     );
   };
 
-  const handleOpenLocation = () => {
+  const handleOpenLocation = (): void => {
     if (!assignment?.latitude || !assignment?.longitude) {
-      Alert.alert('Error', 'No hay coordenadas disponibles para esta asignación');
+      Alert.alert(
+        'Error',
+        'No hay coordenadas disponibles para esta asignación'
+      );
       return;
     }
 
@@ -103,16 +162,14 @@ export default function AssignmentDetailScreen() {
     });
   };
 
-  const getStatusColor = (status: Assignment['status']) => {
+  const getStatusColor = (status: Assignment['status']): string => {
     switch (status) {
       case 'pending':
         return '#f59e0b';
-      case 'assigned':
-        return '#3b82f6';
       case 'in_progress':
-        return '#10b981';
+        return '#3b82f6';
       case 'completed':
-        return '#059669';
+        return '#10b981';
       case 'cancelled':
         return '#ef4444';
       default:
@@ -120,66 +177,68 @@ export default function AssignmentDetailScreen() {
     }
   };
 
-  const getStatusText = (status: Assignment['status']) => {
+  const getStatusText = (status: Assignment['status']): string => {
     switch (status) {
       case 'pending':
         return 'Pendiente';
-      case 'assigned':
-        return 'Asignada';
       case 'in_progress':
         return 'En Progreso';
       case 'completed':
-        return 'Completada';
+        return 'Completado';
       case 'cancelled':
-        return 'Cancelada';
+        return 'Cancelado';
       default:
-        return status;
+        return 'Desconocido';
     }
   };
 
-  const getPriorityColor = (priority: Assignment['priority']) => {
+  const getPriorityColor = (priority: Assignment['priority']): string => {
     switch (priority) {
+      case 'low':
+        return '#10b981';
+      case 'medium':
+        return '#f59e0b';
+      case 'high':
+        return '#ef4444';
       case 'urgent':
         return '#dc2626';
-      case 'high':
-        return '#ea580c';
-      case 'medium':
-        return '#d97706';
-      case 'low':
-        return '#65a30d';
       default:
         return '#6b7280';
     }
   };
 
-  const getPriorityText = (priority: Assignment['priority']) => {
+  const getPriorityText = (priority: Assignment['priority']): string => {
     switch (priority) {
-      case 'urgent':
-        return 'Urgente';
-      case 'high':
-        return 'Alta';
-      case 'medium':
-        return 'Media';
       case 'low':
         return 'Baja';
+      case 'medium':
+        return 'Media';
+      case 'high':
+        return 'Alta';
+      case 'urgent':
+        return 'Urgente';
       default:
-        return priority;
+        return 'Normal';
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleDateString('es-ES', {
       weekday: 'long',
-      day: '2-digit',
-      month: 'long',
       year: 'numeric',
+      month: 'long',
+      day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     });
   };
 
-  const getAvailableActions = () => {
+  const getAvailableActions = (): {
+    status: Assignment['status'];
+    label: string;
+    color: string;
+  }[] => {
     if (!assignment) return [];
 
     const actions = [];
@@ -187,23 +246,26 @@ export default function AssignmentDetailScreen() {
     switch (assignment.status) {
       case 'assigned':
         actions.push({
-          title: 'Iniciar Trabajo',
+          label: 'Iniciar Trabajo',
           status: 'in_progress' as const,
           color: '#10b981',
         });
         break;
       case 'in_progress':
         actions.push({
-          title: 'Marcar como Completada',
+          label: 'Marcar como Completada',
           status: 'completed' as const,
           color: '#059669',
         });
         break;
     }
 
-    if (assignment.status !== 'cancelled' && assignment.status !== 'completed') {
+    if (
+      assignment.status !== 'cancelled' &&
+      assignment.status !== 'completed'
+    ) {
       actions.push({
-        title: 'Cancelar',
+        label: 'Cancelar',
         status: 'cancelled' as const,
         color: '#ef4444',
       });
@@ -228,7 +290,10 @@ export default function AssignmentDetailScreen() {
         <Text style={styles.errorText}>
           {error || 'No se pudo cargar la asignación'}
         </Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadAssignmentDetail}>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={loadAssignmentDetail}
+        >
           <Text style={styles.retryButtonText}>Reintentar</Text>
         </TouchableOpacity>
       </View>
@@ -238,7 +303,10 @@ export default function AssignmentDetailScreen() {
   const availableActions = getAvailableActions();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+    >
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>{assignment.title}</Text>
@@ -293,7 +361,9 @@ export default function AssignmentDetailScreen() {
         <Text style={styles.sectionTitle}>Fechas</Text>
         <View style={styles.dateItem}>
           <Text style={styles.dateLabel}>Asignada:</Text>
-          <Text style={styles.dateValue}>{formatDate(assignment.assigned_at)}</Text>
+          <Text style={styles.dateValue}>
+            {formatDate(assignment.assigned_at)}
+          </Text>
         </View>
         {assignment.due_date && (
           <View style={styles.dateItem}>
@@ -306,13 +376,17 @@ export default function AssignmentDetailScreen() {
         {assignment.started_at && (
           <View style={styles.dateItem}>
             <Text style={styles.dateLabel}>Iniciada:</Text>
-            <Text style={styles.dateValue}>{formatDate(assignment.started_at)}</Text>
+            <Text style={styles.dateValue}>
+              {formatDate(assignment.started_at)}
+            </Text>
           </View>
         )}
         {assignment.completed_at && (
           <View style={styles.dateItem}>
             <Text style={styles.dateLabel}>Completada:</Text>
-            <Text style={styles.dateValue}>{formatDate(assignment.completed_at)}</Text>
+            <Text style={styles.dateValue}>
+              {formatDate(assignment.completed_at)}
+            </Text>
           </View>
         )}
       </View>
@@ -362,7 +436,7 @@ export default function AssignmentDetailScreen() {
               {updating ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text style={styles.actionButtonText}>{action.title}</Text>
+                <Text style={styles.actionButtonText}>{action.label}</Text>
               )}
             </TouchableOpacity>
           ))}
@@ -375,7 +449,7 @@ export default function AssignmentDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   contentContainer: {
     padding: 16,
@@ -385,49 +459,49 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 32,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   errorTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#dc2626',
+    color: Colors.error,
     marginBottom: 8,
   },
   errorText: {
     fontSize: 16,
-    color: '#64748b',
+    color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
   },
   retryButton: {
-    backgroundColor: '#dc2626',
+    backgroundColor: Colors.error,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: 'white',
+    color: Colors.textLight,
     fontSize: 16,
     fontWeight: '600',
   },
   header: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 20,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -436,7 +510,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 16,
   },
   statusContainer: {
@@ -450,7 +524,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   statusText: {
-    color: 'white',
+    color: Colors.textLight,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -458,18 +532,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Colors.backgroundLight,
   },
   priorityText: {
     fontSize: 14,
     fontWeight: '600',
   },
   section: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 20,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -478,12 +552,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 12,
   },
   description: {
     fontSize: 16,
-    color: '#475569',
+    color: Colors.textGray,
     lineHeight: 24,
   },
   locationContainer: {
@@ -493,12 +567,12 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 16,
-    color: '#475569',
+    color: Colors.textGray,
     flex: 1,
   },
   locationAction: {
     fontSize: 14,
-    color: '#3b82f6',
+    color: Colors.primary,
     fontWeight: '600',
   },
   dateItem: {
@@ -509,15 +583,15 @@ const styles = StyleSheet.create({
   },
   dateLabel: {
     fontSize: 16,
-    color: '#64748b',
+    color: Colors.textSecondary,
     fontWeight: '500',
   },
   dateValue: {
     fontSize: 16,
-    color: '#1e293b',
+    color: Colors.textPrimary,
   },
   dueDateValue: {
-    color: '#dc2626',
+    color: Colors.error,
     fontWeight: '600',
   },
   durationItem: {
@@ -528,23 +602,23 @@ const styles = StyleSheet.create({
   },
   durationLabel: {
     fontSize: 16,
-    color: '#64748b',
+    color: Colors.textSecondary,
     fontWeight: '500',
   },
   durationValue: {
     fontSize: 16,
-    color: '#1e293b',
+    color: Colors.textPrimary,
   },
   notes: {
     fontSize: 16,
-    color: '#475569',
+    color: Colors.textGray,
     lineHeight: 24,
   },
   actionsSection: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -558,7 +632,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionButtonText: {
-    color: 'white',
+    color: Colors.textLight,
     fontSize: 16,
     fontWeight: '600',
   },

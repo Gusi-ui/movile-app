@@ -1,30 +1,31 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { AuthResponse, Worker } from '../types';
-import { 
-  Assignment, 
-  Route, 
-  Balance, 
-  Note, 
-  UserSettings, 
+import logger from '../utils/logger';
+import {
+  Assignment,
+  Route,
+  Balance,
+  Note,
+  UserSettings,
   WorkerStats,
   ApiResponse,
   PaginatedResponse,
   AssignmentFilters,
   RouteFilters,
-  BalanceFilters
+  BalanceFilters,
 } from '../types/database';
 
 // Configuración de la API
-const getApiBaseUrl = () => {
+const getApiBaseUrl = (): string => {
   const envUrl = process.env.EXPO_PUBLIC_API_URL || 'https://api.sadlas.com/v1';
-  
+
   // En Android, localhost no funciona, necesitamos usar 10.0.2.2
   if (envUrl.includes('localhost') && Platform.OS === 'android') {
-    console.log('🤖 Detectado Android - Cambiando localhost por 10.0.2.2');
+    logger.debug('🤖 Detectado Android - Cambiando localhost por 10.0.2.2');
     return envUrl.replace('localhost', '10.0.2.2');
   }
-  
+
   return envUrl;
 };
 
@@ -32,9 +33,12 @@ const API_BASE_URL = getApiBaseUrl();
 const MOCK_API = process.env.EXPO_PUBLIC_MOCK_API === 'true';
 
 // Debug: Log para verificar la URL
-console.log('🔧 API_BASE_URL configurada:', API_BASE_URL);
-console.log('🔧 EXPO_PUBLIC_API_URL original:', process.env.EXPO_PUBLIC_API_URL);
-console.log('🔧 MOCK_API habilitado:', MOCK_API);
+logger.debug('🔧 API_BASE_URL configurada:', API_BASE_URL);
+logger.debug(
+  '🔧 EXPO_PUBLIC_API_URL original:',
+  process.env.EXPO_PUBLIC_API_URL
+);
+logger.debug('🔧 MOCK_API habilitado:', MOCK_API);
 
 // Datos mock para pruebas
 const MOCK_WORKER: Worker = {
@@ -67,7 +71,8 @@ const MOCK_ASSIGNMENTS: Assignment[] = [
   {
     id: 'assignment-001',
     title: 'Cuidado personal - María López',
-    description: 'Asistencia en higiene personal, vestido y medicación matutina',
+    description:
+      'Asistencia en higiene personal, vestido y medicación matutina',
     status: 'assigned',
     priority: 'high',
     worker_id: 'worker-001',
@@ -78,7 +83,8 @@ const MOCK_ASSIGNMENTS: Assignment[] = [
     assigned_at: new Date().toISOString(),
     due_date: new Date().toISOString(),
     estimated_duration: 120,
-    notes: 'Paciente con movilidad reducida. Medicación a las 9:00h. Clave del portal: 1234B',
+    notes:
+      'Paciente con movilidad reducida. Medicación a las 9:00h. Clave del portal: 1234B',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -91,12 +97,13 @@ const MOCK_ASSIGNMENTS: Assignment[] = [
     worker_id: 'worker-001',
     assigned_by: 'coordinator-001',
     address: 'Avenida de los Rosales 28, 1º A, Madrid',
-    latitude: 40.4200,
-    longitude: -3.7100,
+    latitude: 40.42,
+    longitude: -3.71,
     assigned_at: new Date().toISOString(),
     due_date: new Date().toISOString(),
     estimated_duration: 90,
-    notes: 'Especial atención a la cocina. Productos de limpieza en el armario bajo el fregadero',
+    notes:
+      'Especial atención a la cocina. Productos de limpieza en el armario bajo el fregadero',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -109,12 +116,13 @@ const MOCK_ASSIGNMENTS: Assignment[] = [
     worker_id: 'worker-001',
     assigned_by: 'coordinator-001',
     address: 'Plaza del Sol 7, 2º C, Madrid',
-    latitude: 40.4150,
-    longitude: -3.7050,
+    latitude: 40.415,
+    longitude: -3.705,
     assigned_at: new Date().toISOString(),
     due_date: new Date().toISOString(),
     estimated_duration: 60,
-    notes: 'Le gusta hablar de sus nietos. Si hace buen tiempo, paseo por el Parque del Retiro',
+    notes:
+      'Le gusta hablar de sus nietos. Si hace buen tiempo, paseo por el Parque del Retiro',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -127,12 +135,13 @@ const MOCK_ASSIGNMENTS: Assignment[] = [
     worker_id: 'worker-001',
     assigned_by: 'coordinator-001',
     address: 'Calle Mayor 142, 4º D, Madrid',
-    latitude: 40.4180,
-    longitude: -3.7020,
+    latitude: 40.418,
+    longitude: -3.702,
     assigned_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     due_date: new Date().toISOString(),
     estimated_duration: 150,
-    notes: 'Dieta sin sal. Medicación después del almuerzo. Familiar de contacto: 666-123-456',
+    notes:
+      'Dieta sin sal. Medicación después del almuerzo. Familiar de contacto: 666-123-456',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -143,7 +152,8 @@ const MOCK_ROUTES: Route[] = [
   {
     id: 'route-001',
     name: 'Ruta Matutina - Centro',
-    description: 'Servicios de cuidado personal y asistencia matutina en zona centro',
+    description:
+      'Servicios de cuidado personal y asistencia matutina en zona centro',
     status: 'active',
     worker_id: 'worker-001',
     created_by: 'coordinator-001',
@@ -174,13 +184,13 @@ const MOCK_ROUTES: Route[] = [
     created_by: 'coordinator-001',
     start_location: {
       address: 'Metro Bilbao - Calle de Fuencarral',
-      latitude: 40.4300,
-      longitude: -3.7000,
+      latitude: 40.43,
+      longitude: -3.7,
     },
     end_location: {
       address: 'Metro Bilbao - Calle de Fuencarral',
-      latitude: 40.4300,
-      longitude: -3.7000,
+      latitude: 40.43,
+      longitude: -3.7,
     },
     scheduled_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     total_assignments: 6,
@@ -198,12 +208,12 @@ const MOCK_BALANCES: Balance[] = [
     worker_id: 'worker-001',
     period_start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
     period_end: new Date().toISOString(),
-    base_salary: 1500.00,
+    base_salary: 1500.0,
     overtime_hours: 10,
-    overtime_rate: 15.00,
-    bonuses: 200.00,
-    deductions: 50.00,
-    total_amount: 1800.00,
+    overtime_rate: 15.0,
+    bonuses: 200.0,
+    deductions: 50.0,
+    total_amount: 1800.0,
     status: 'approved',
     approved_by: 'admin-001',
     approved_at: new Date().toISOString(),
@@ -218,12 +228,12 @@ const MOCK_BALANCES: Balance[] = [
     worker_id: 'worker-001',
     period_start: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
     period_end: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-    base_salary: 1500.00,
+    base_salary: 1500.0,
     overtime_hours: 5,
-    overtime_rate: 15.00,
-    bonuses: 100.00,
-    deductions: 25.00,
-    total_amount: 1650.00,
+    overtime_rate: 15.0,
+    bonuses: 100.0,
+    deductions: 25.0,
+    total_amount: 1650.0,
     status: 'paid',
     approved_by: 'admin-001',
     approved_at: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
@@ -242,7 +252,13 @@ class ApiClient {
     this.baseURL = baseURL;
   }
 
-  private createQueryParams(filters: Record<string, unknown> | AssignmentFilters | RouteFilters | BalanceFilters): string {
+  private createQueryParams(
+    filters:
+      | Record<string, unknown>
+      | AssignmentFilters
+      | RouteFilters
+      | BalanceFilters
+  ): string {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
@@ -260,7 +276,7 @@ class ApiClient {
     try {
       return await AsyncStorage.getItem('token');
     } catch (error) {
-      console.error('Error getting auth token:', error);
+      logger.error('Error getting auth token:', error);
       return null;
     }
   }
@@ -272,11 +288,11 @@ class ApiClient {
     try {
       const token = await this.getAuthToken();
       const url = `${this.baseURL}${endpoint}`;
-      
+
       // Debug: Log del token
-      console.log('🔑 Token obtenido:', token ? 'Token presente' : 'No token');
-      console.log('🌐 URL de petición:', url);
-      
+      logger.debug('🔑 Token obtenido:', token ? 'Token presente' : 'No token');
+      logger.debug('🌐 URL de petición:', url);
+
       const config: RequestInit = {
         headers: {
           'Content-Type': 'application/json',
@@ -303,7 +319,7 @@ class ApiClient {
         status: response.status,
       };
     } catch (error) {
-      console.error('API request error:', error);
+      logger.error('API request error:', error);
       return {
         data: null,
         error: error instanceof Error ? error.message : 'Network error',
@@ -313,27 +329,30 @@ class ApiClient {
   }
 
   // Métodos de autenticación
-  async login(email: string, password: string): Promise<ApiResponse<AuthResponse>> {
+  async login(
+    email: string,
+    password: string
+  ): Promise<ApiResponse<AuthResponse>> {
     // Modo mock para pruebas sin backend
     if (MOCK_API) {
-      console.log('🎭 Usando modo MOCK para login');
-      console.log('📧 Email recibido:', email);
-      console.log('🔑 Password recibido:', password ? '***' : 'vacío');
-      
+      logger.debug('🎭 Usando modo MOCK para login');
+      logger.debug('📧 Email recibido:', email);
+      logger.debug('🔑 Password recibido:', password ? '***' : 'vacío');
+
       // Simular credenciales válidas - en modo mock, aceptamos cualquier contraseña para estos emails
       const validEmails = [
         'maria.garcia@sadlas.com',
-        'test@sadlas.com', 
-        'worker@sadlas.com'
+        'test@sadlas.com',
+        'worker@sadlas.com',
       ];
-      
+
       const isValidCredential = validEmails.includes(email.toLowerCase());
-      console.log('✅ Credencial válida:', isValidCredential);
-      
+      logger.debug('✅ Credencial válida:', isValidCredential);
+
       if (isValidCredential) {
         // Simular delay de red
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         return {
           data: MOCK_AUTH_RESPONSE,
           error: null,
@@ -347,7 +366,7 @@ class ApiClient {
         };
       }
     }
-    
+
     // Modo normal con backend real
     return this.request<AuthResponse>('/auth/login', {
       method: 'POST',
@@ -372,7 +391,9 @@ class ApiClient {
     return this.request<Worker>('/worker/profile');
   }
 
-  async updateWorkerProfile(data: Partial<Worker>): Promise<ApiResponse<Worker>> {
+  async updateWorkerProfile(
+    data: Partial<Worker>
+  ): Promise<ApiResponse<Worker>> {
     return this.request<Worker>('/worker/profile', {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -380,26 +401,34 @@ class ApiClient {
   }
 
   // Métodos de asignaciones
-  async getAssignments(filters?: AssignmentFilters): Promise<ApiResponse<PaginatedResponse<Assignment>>> {
+  async getAssignments(
+    filters?: AssignmentFilters
+  ): Promise<ApiResponse<PaginatedResponse<Assignment>>> {
     if (MOCK_API) {
-      console.log('📋 Modo mock: getAssignments');
+      logger.debug('📋 Modo mock: getAssignments');
       await new Promise(resolve => setTimeout(resolve, 500)); // Simular delay
-      
+
       let filteredAssignments = [...MOCK_ASSIGNMENTS];
-      
+
       // Aplicar filtros si existen
       if (filters) {
         if (filters.status && filters.status.length > 0) {
-          filteredAssignments = filteredAssignments.filter(a => filters.status!.includes(a.status));
+          filteredAssignments = filteredAssignments.filter(a =>
+            filters.status?.includes(a.status)
+          );
         }
         if (filters.priority && filters.priority.length > 0) {
-          filteredAssignments = filteredAssignments.filter(a => filters.priority!.includes(a.priority));
+          filteredAssignments = filteredAssignments.filter(a =>
+            filters.priority?.includes(a.priority)
+          );
         }
         if (filters.route_id) {
-          filteredAssignments = filteredAssignments.filter(a => a.route_id === filters.route_id);
+          filteredAssignments = filteredAssignments.filter(
+            a => a.route_id === filters.route_id
+          );
         }
       }
-      
+
       return {
         data: {
           data: filteredAssignments,
@@ -416,17 +445,19 @@ class ApiClient {
         status: 200,
       };
     }
-    
+
     const queryParams = filters ? this.createQueryParams(filters) : '';
-    const endpoint = queryParams ? `/worker/assignments?${queryParams}` : '/worker/assignments';
+    const endpoint = queryParams
+      ? `/worker/assignments?${queryParams}`
+      : '/worker/assignments';
     return this.request<PaginatedResponse<Assignment>>(endpoint);
   }
 
   async getAssignmentDetail(id: string): Promise<ApiResponse<Assignment>> {
     if (MOCK_API) {
-      console.log('📋 Modo mock: getAssignmentDetail', id);
+      logger.debug('📋 Modo mock: getAssignmentDetail', id);
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       const assignment = MOCK_ASSIGNMENTS.find(a => a.id === id);
       if (assignment) {
         return {
@@ -442,11 +473,14 @@ class ApiClient {
         };
       }
     }
-    
+
     return this.request<Assignment>(`/worker/assignments/${id}`);
   }
 
-  async updateAssignmentStatus(id: string, status: string): Promise<ApiResponse<Assignment>> {
+  async updateAssignmentStatus(
+    id: string,
+    status: string
+  ): Promise<ApiResponse<Assignment>> {
     return this.request<Assignment>(`/worker/assignments/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ status }),
@@ -454,20 +488,24 @@ class ApiClient {
   }
 
   // Métodos de ruta
-  async getRoutes(filters?: RouteFilters): Promise<ApiResponse<PaginatedResponse<Route>>> {
+  async getRoutes(
+    filters?: RouteFilters
+  ): Promise<ApiResponse<PaginatedResponse<Route>>> {
     if (MOCK_API) {
-      console.log('🛣️ Modo mock: getRoutes');
+      logger.debug('🛣️ Modo mock: getRoutes');
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       let filteredRoutes = [...MOCK_ROUTES];
-      
+
       // Aplicar filtros si existen
       if (filters) {
         if (filters.status && filters.status.length > 0) {
-          filteredRoutes = filteredRoutes.filter(r => filters.status!.includes(r.status));
+          filteredRoutes = filteredRoutes.filter(r =>
+            filters.status?.includes(r.status)
+          );
         }
       }
-      
+
       return {
         data: {
           data: filteredRoutes,
@@ -484,9 +522,11 @@ class ApiClient {
         status: 200,
       };
     }
-    
+
     const queryParams = filters ? this.createQueryParams(filters) : '';
-    const endpoint = queryParams ? `/worker/routes?${queryParams}` : '/worker/routes';
+    const endpoint = queryParams
+      ? `/worker/routes?${queryParams}`
+      : '/worker/routes';
     return this.request<PaginatedResponse<Route>>(endpoint);
   }
 
@@ -496,9 +536,9 @@ class ApiClient {
 
   async getRouteDetail(id: string): Promise<ApiResponse<Route>> {
     if (MOCK_API) {
-      console.log('🛣️ Modo mock: getRouteDetail', id);
+      logger.debug('🛣️ Modo mock: getRouteDetail', id);
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       const route = MOCK_ROUTES.find(r => r.id === id);
       if (route) {
         return {
@@ -514,11 +554,14 @@ class ApiClient {
         };
       }
     }
-    
+
     return this.request<Route>(`/worker/routes/${id}`);
   }
 
-  async updateRouteStatus(id: string, status: string): Promise<ApiResponse<Route>> {
+  async updateRouteStatus(
+    id: string,
+    status: string
+  ): Promise<ApiResponse<Route>> {
     return this.request<Route>(`/worker/routes/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ status }),
@@ -526,28 +569,36 @@ class ApiClient {
   }
 
   // Métodos de balances
-  async getBalances(filters?: BalanceFilters): Promise<ApiResponse<PaginatedResponse<Balance>>> {
+  async getBalances(
+    filters?: BalanceFilters
+  ): Promise<ApiResponse<PaginatedResponse<Balance>>> {
     if (MOCK_API) {
-      console.log('💰 Modo mock: getBalances');
+      logger.debug('💰 Modo mock: getBalances');
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       let filteredBalances = [...MOCK_BALANCES];
-      
+
       // Aplicar filtros si existen
       if (filters) {
         if (filters.status && filters.status.length > 0) {
-          filteredBalances = filteredBalances.filter(b => filters.status!.includes(b.status));
+          filteredBalances = filteredBalances.filter(b =>
+            filters.status?.includes(b.status)
+          );
         }
         if (filters.period_from) {
           const fromDate = new Date(filters.period_from);
-          filteredBalances = filteredBalances.filter(b => new Date(b.period_start) >= fromDate);
+          filteredBalances = filteredBalances.filter(
+            b => new Date(b.period_start) >= fromDate
+          );
         }
         if (filters.period_to) {
           const toDate = new Date(filters.period_to);
-          filteredBalances = filteredBalances.filter(b => new Date(b.period_end) <= toDate);
+          filteredBalances = filteredBalances.filter(
+            b => new Date(b.period_end) <= toDate
+          );
         }
       }
-      
+
       return {
         data: {
           data: filteredBalances,
@@ -564,17 +615,19 @@ class ApiClient {
         status: 200,
       };
     }
-    
+
     const queryParams = filters ? this.createQueryParams(filters) : '';
-    const endpoint = queryParams ? `/worker/balances?${queryParams}` : '/worker/balances';
+    const endpoint = queryParams
+      ? `/worker/balances?${queryParams}`
+      : '/worker/balances';
     return this.request<PaginatedResponse<Balance>>(endpoint);
   }
 
   async getBalanceDetail(id: string): Promise<ApiResponse<Balance>> {
     if (MOCK_API) {
-      console.log('💰 Modo mock: getBalanceDetail', id);
+      logger.debug('💰 Modo mock: getBalanceDetail', id);
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       const balance = MOCK_BALANCES.find(b => b.id === id);
       if (balance) {
         return {
@@ -590,7 +643,7 @@ class ApiClient {
         };
       }
     }
-    
+
     return this.request<Balance>(`/worker/balances/${id}`);
   }
 
@@ -606,7 +659,10 @@ class ApiClient {
     });
   }
 
-  async updateNote(id: string, data: Partial<Note>): Promise<ApiResponse<Note>> {
+  async updateNote(
+    id: string,
+    data: Partial<Note>
+  ): Promise<ApiResponse<Note>> {
     return this.request<Note>(`/worker/notes/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -624,7 +680,9 @@ class ApiClient {
     return this.request<UserSettings>('/worker/settings');
   }
 
-  async updateUserSettings(settings: Partial<UserSettings>): Promise<ApiResponse<UserSettings>> {
+  async updateUserSettings(
+    settings: Partial<UserSettings>
+  ): Promise<ApiResponse<UserSettings>> {
     return this.request<UserSettings>('/worker/settings', {
       method: 'PUT',
       body: JSON.stringify(settings),
@@ -641,37 +699,62 @@ class ApiClient {
 const apiClient = new ApiClient(API_BASE_URL);
 
 // Funciones exportadas para mantener compatibilidad
-export const authenticateWorker = (email: string, password: string) => 
-  apiClient.login(email, password);
+export const authenticateWorker = (
+  email: string,
+  password: string
+): Promise<ApiResponse<AuthResponse>> => apiClient.login(email, password);
 
-export const logoutWorker = () => apiClient.logout();
+export const logoutWorker = (): Promise<ApiResponse<{ message: string }>> =>
+  apiClient.logout();
 
-export const getWorkerProfile = () => apiClient.getWorkerProfile();
+export const getWorkerProfile = (): Promise<ApiResponse<Worker>> =>
+  apiClient.getWorkerProfile();
 
-export const updateWorkerProfile = (data: Partial<Worker>) => 
-  apiClient.updateWorkerProfile(data);
+export const updateWorkerProfile = (
+  data: Partial<Worker>
+): Promise<ApiResponse<Worker>> => apiClient.updateWorkerProfile(data);
 
-export const getAssignments = (filters?: AssignmentFilters) => apiClient.getAssignments(filters);
+export const getAssignments = (
+  filters?: AssignmentFilters
+): Promise<ApiResponse<PaginatedResponse<Assignment>>> =>
+  apiClient.getAssignments(filters);
 
-export const getAssignmentDetail = (id: string) => 
-  apiClient.getAssignmentDetail(id);
+export const getAssignmentDetail = (
+  id: string
+): Promise<ApiResponse<Assignment>> => apiClient.getAssignmentDetail(id);
 
-export const updateAssignmentStatus = (id: string, status: string) => 
+export const updateAssignmentStatus = (
+  id: string,
+  status: string
+): Promise<ApiResponse<Assignment>> =>
   apiClient.updateAssignmentStatus(id, status);
 
-export const getRoutes = (filters?: RouteFilters) => apiClient.getRoutes(filters);
+export const getRoutes = (
+  filters?: RouteFilters
+): Promise<ApiResponse<PaginatedResponse<Route>>> =>
+  apiClient.getRoutes(filters);
 
-export const getCurrentRoute = () => apiClient.getCurrentRoute();
+export const getCurrentRoute = (): Promise<ApiResponse<Route | null>> =>
+  apiClient.getCurrentRoute();
 
-export const getBalances = (filters?: BalanceFilters) => apiClient.getBalances(filters);
+export const getBalances = (
+  filters?: BalanceFilters
+): Promise<ApiResponse<PaginatedResponse<Balance>>> =>
+  apiClient.getBalances(filters);
 
-export const getNotes = () => apiClient.getNotes();
+export const getNotes = (): Promise<ApiResponse<PaginatedResponse<Note>>> =>
+  apiClient.getNotes();
 
-export const createNote = (data: Partial<Note>) => apiClient.createNote(data);
+export const createNote = (data: Partial<Note>): Promise<ApiResponse<Note>> =>
+  apiClient.createNote(data);
 
-export const updateNote = (id: string, data: Partial<Note>) => 
-  apiClient.updateNote(id, data);
+export const updateNote = (
+  id: string,
+  data: Partial<Note>
+): Promise<ApiResponse<Note>> => apiClient.updateNote(id, data);
 
-export const deleteNote = (id: string) => apiClient.deleteNote(id);
+export const deleteNote = (
+  id: string
+): Promise<ApiResponse<{ message: string }>> => apiClient.deleteNote(id);
 
 export default apiClient;

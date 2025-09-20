@@ -7,10 +7,12 @@ import {
   View,
 } from 'react-native';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import logger from '../utils/logger';
+import { Colors } from '../constants/colors';
 
 interface UpcomingService {
   id: string;
@@ -19,6 +21,23 @@ interface UpcomingService {
   timeSlot: string;
   assignmentType: string;
   dayOfWeek: string;
+}
+
+interface AssignmentWithUser {
+  id: string;
+  assignment_type: string;
+  schedule: unknown;
+  start_date: string;
+  end_date: string | null;
+  users?: {
+    name?: string;
+    surname?: string;
+  };
+}
+
+interface TimeSlot {
+  start: string;
+  end: string;
 }
 
 type ViewMode = 'tomorrow' | 'thisWeek' | 'thisMonth';
@@ -37,11 +56,7 @@ export default function UpcomingScreen(): React.JSX.Element {
     thisMonth: 0,
   });
 
-  useEffect(() => {
-    loadUpcomingServices();
-  }, [currentWorker, viewMode]);
-
-  const loadUpcomingServices = async (): Promise<void> => {
+  const loadUpcomingServices = useCallback(async (): Promise<void> => {
     if (!currentWorker?.email) {
       setLoading(false);
       return;
@@ -80,10 +95,12 @@ export default function UpcomingScreen(): React.JSX.Element {
 
       if (assignments) {
         // Transformar datos para que coincidan con la interfaz
-        const transformedAssignments = assignments.map((row: any) => ({
-          ...row,
-          users: Array.isArray(row.users) ? row.users[0] : row.users,
-        }));
+        const transformedAssignments = assignments.map(
+          (row: AssignmentWithUser) => ({
+            ...row,
+            users: Array.isArray(row.users) ? row.users[0] : row.users,
+          })
+        );
 
         const services = generateUpcomingServices(
           transformedAssignments,
@@ -112,15 +129,19 @@ export default function UpcomingScreen(): React.JSX.Element {
         });
       }
     } catch (error) {
-      console.error('Error loading upcoming services:', error);
+      logger.error('Error loading upcoming services:', error);
       Alert.alert('Error', 'No se pudieron cargar los próximos servicios');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentWorker?.email, viewMode]);
+
+  useEffect(() => {
+    loadUpcomingServices();
+  }, [loadUpcomingServices, viewMode]);
 
   const generateUpcomingServices = (
-    assignments: any[],
+    assignments: AssignmentWithUser[],
     mode: ViewMode
   ): UpcomingService[] => {
     const services: UpcomingService[] = [];
@@ -149,16 +170,17 @@ export default function UpcomingScreen(): React.JSX.Element {
         return services;
     }
 
-    assignments.forEach((assignment) => {
+    assignments.forEach(assignment => {
       try {
         const schedule =
           typeof assignment.schedule === 'string'
             ? JSON.parse(assignment.schedule)
             : assignment.schedule;
 
-        const userName =
-          `${assignment.users.name || ''} ${assignment.users.surname || ''}`.trim() ||
-          'Servicio';
+        const userName = assignment.users
+          ? `${assignment.users.name || ''} ${assignment.users.surname || ''}`.trim() ||
+            'Servicio'
+          : 'Servicio';
 
         // Generar servicios para el rango de fechas
         const current = new Date(startDate);
@@ -176,7 +198,7 @@ export default function UpcomingScreen(): React.JSX.Element {
           const dayKey = dayNames[dayOfWeek];
 
           const dayConfig = schedule?.[dayKey as keyof typeof schedule];
-          const timeSlots = dayConfig?.timeSlots || [];
+          const timeSlots: TimeSlot[] = dayConfig?.timeSlots || [];
           const enabled = dayConfig?.enabled !== false;
 
           if (enabled && timeSlots.length > 0) {
@@ -199,7 +221,7 @@ export default function UpcomingScreen(): React.JSX.Element {
             }
 
             if (shouldInclude) {
-              timeSlots.forEach((slot: any) => {
+              timeSlots.forEach((slot: TimeSlot) => {
                 if (slot.start && slot.end) {
                   services.push({
                     id: `${assignment.id}-${current.toISOString().split('T')[0]}-${slot.start}`,
@@ -219,7 +241,7 @@ export default function UpcomingScreen(): React.JSX.Element {
           current.setDate(current.getDate() + 1);
         }
       } catch (error) {
-        console.error('Error processing assignment:', error);
+        logger.error('Error processing assignment:', error);
       }
     });
 
@@ -493,65 +515,65 @@ export default function UpcomingScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.textMuted,
   },
   header: {
     padding: 20,
     paddingTop: 50,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: Colors.textDark,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.textMuted,
   },
   viewSelector: {
     flexDirection: 'row',
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: Colors.borderLight,
   },
   viewButton: {
     flex: 1,
     padding: 12,
     marginHorizontal: 4,
     borderRadius: 8,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.backgroundLight,
     alignItems: 'center',
   },
   activeViewButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: Colors.info,
   },
   viewButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#374151',
+    color: Colors.textGray,
   },
   activeViewButtonText: {
-    color: 'white',
+    color: Colors.textLight,
   },
   summaryCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     margin: 16,
     padding: 20,
     borderRadius: 16,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -561,26 +583,26 @@ const styles = StyleSheet.create({
   summaryTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: Colors.textDark,
     marginBottom: 4,
   },
   summaryDescription: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.textMuted,
     marginBottom: 8,
   },
   summaryCount: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3b82f6',
+    color: Colors.info,
   },
   noServicesCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     margin: 16,
     padding: 40,
     borderRadius: 16,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -588,14 +610,14 @@ const styles = StyleSheet.create({
   },
   noServicesText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.textMuted,
     textAlign: 'center',
   },
   servicesContainer: {
     paddingHorizontal: 16,
   },
   dateHeader: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.backgroundLight,
     padding: 12,
     marginVertical: 8,
     borderRadius: 8,
@@ -603,17 +625,17 @@ const styles = StyleSheet.create({
   dateHeaderText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.textGray,
     textAlign: 'center',
   },
   serviceCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     marginBottom: 8,
     padding: 16,
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -630,7 +652,7 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: Colors.textDark,
     marginRight: 12,
   },
   typeLabel: {
@@ -644,27 +666,27 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.textMuted,
   },
   detailsButton: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.backgroundLight,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: Colors.border,
   },
   detailsButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#374151',
+    color: Colors.textGray,
   },
   quickActionsCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     margin: 16,
     padding: 20,
     borderRadius: 16,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -673,7 +695,7 @@ const styles = StyleSheet.create({
   quickActionsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
+    color: Colors.textDark,
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -692,7 +714,7 @@ const styles = StyleSheet.create({
   quickActionLabel: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#374151',
+    color: Colors.textGray,
   },
   bottomSpacing: {
     height: 100,

@@ -1,17 +1,42 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import logger from '../utils/logger';
+import { Assignment, HoursBalance } from '../types/database-types';
+
+export interface WorkerInfo {
+  id: string;
+  name: string;
+  surname: string;
+  email: string;
+  phone: string;
+  dni: string;
+  worker_type: string;
+  is_active: boolean;
+  created_at: string;
+}
 
 export interface OfflineData {
-  assignments: any[];
-  balances: any[];
-  workerInfo: any;
+  assignments: Assignment[];
+  balances: HoursBalance[];
+  workerInfo: WorkerInfo | null;
   lastSync: string;
+}
+
+export interface PendingActionData {
+  assignmentId?: string;
+  status?: string;
+  note?: string;
+  timestamp?: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
 }
 
 export interface PendingAction {
   id: string;
   type: 'service_completed' | 'note_added' | 'check_in' | 'check_out';
-  data: any;
+  data: PendingActionData;
   timestamp: string;
 }
 
@@ -37,7 +62,7 @@ class OfflineService {
    * Inicializar listener de conectividad
    */
   private initializeNetworkListener(): void {
-    NetInfo.addEventListener((state: any) => {
+    NetInfo.addEventListener(state => {
       const wasOffline = !this.isOnline;
       this.isOnline = state.isConnected ?? false;
 
@@ -58,7 +83,7 @@ class OfflineService {
         this.pendingActions = JSON.parse(stored);
       }
     } catch (error) {
-      console.error('Error loading pending actions:', error);
+      logger.error('Error loading pending actions:', error);
     }
   }
 
@@ -72,7 +97,7 @@ class OfflineService {
         JSON.stringify(this.pendingActions)
       );
     } catch (error) {
-      console.error('Error saving pending actions:', error);
+      logger.error('Error saving pending actions:', error);
     }
   }
 
@@ -104,7 +129,7 @@ class OfflineService {
 
       await AsyncStorage.setItem('offline_data', JSON.stringify(updatedData));
     } catch (error) {
-      console.error('Error saving offline data:', error);
+      logger.error('Error saving offline data:', error);
     }
   }
 
@@ -118,7 +143,7 @@ class OfflineService {
         return JSON.parse(stored);
       }
     } catch (error) {
-      console.error('Error getting offline data:', error);
+      logger.error('Error getting offline data:', error);
     }
 
     return {
@@ -175,22 +200,22 @@ class OfflineService {
             syncedActions.push(action.id);
           }
         } catch (error) {
-          console.error(`Error syncing action ${action.id}:`, error);
+          logger.error(`Error syncing action ${action.id}:`, error);
         }
       }
 
       // Remover acciones sincronizadas exitosamente
       this.pendingActions = this.pendingActions.filter(
-        (action) => !syncedActions.includes(action.id)
+        action => !syncedActions.includes(action.id)
       );
 
       await this.savePendingActions();
 
-      console.log(
+      logger.debug(
         `Synced ${syncedActions.length} of ${actionsToSync.length} pending actions`
       );
     } catch (error) {
-      console.error('Error during sync:', error);
+      logger.error('Error during sync:', error);
     } finally {
       this.syncInProgress = false;
     }
@@ -212,11 +237,11 @@ class OfflineService {
         case 'check_out':
           return await this.syncCheckOut(action.data);
         default:
-          console.warn(`Unknown action type: ${action.type}`);
+          logger.warn(`Unknown action type: ${action.type}`);
           return true; // Marcar como sincronizado para removerlo
       }
     } catch (error) {
-      console.error(`Error syncing action ${action.type}:`, error);
+      logger.error(`Error syncing action ${action.type}:`, error);
       return false;
     }
   }
@@ -224,14 +249,16 @@ class OfflineService {
   /**
    * Sincronizar servicio completado
    */
-  private async syncServiceCompleted(data: any): Promise<boolean> {
+  private async syncServiceCompleted(
+    data: PendingActionData
+  ): Promise<boolean> {
     try {
       // Implementar llamada a la API/Supabase para marcar servicio como completado
-      console.log('Syncing service completed:', data);
+      logger.debug('Syncing service completed:', data);
       // Aquí iría la lógica real de sincronización
       return true;
     } catch (error) {
-      console.error('Error syncing service completed:', error);
+      logger.error('Error syncing service completed:', error);
       return false;
     }
   }
@@ -239,14 +266,14 @@ class OfflineService {
   /**
    * Sincronizar nota agregada
    */
-  private async syncNoteAdded(data: any): Promise<boolean> {
+  private async syncNoteAdded(data: PendingActionData): Promise<boolean> {
     try {
       // Implementar llamada a la API/Supabase para agregar nota
-      console.log('Syncing note added:', data);
+      logger.debug('Syncing note added:', data);
       // Aquí iría la lógica real de sincronización
       return true;
     } catch (error) {
-      console.error('Error syncing note added:', error);
+      logger.error('Error syncing note added:', error);
       return false;
     }
   }
@@ -254,14 +281,14 @@ class OfflineService {
   /**
    * Sincronizar check-in
    */
-  private async syncCheckIn(data: any): Promise<boolean> {
+  private async syncCheckIn(data: PendingActionData): Promise<boolean> {
     try {
       // Implementar llamada a la API/Supabase para registrar check-in
-      console.log('Syncing check-in:', data);
+      logger.debug('Syncing check-in:', data);
       // Aquí iría la lógica real de sincronización
       return true;
     } catch (error) {
-      console.error('Error syncing check-in:', error);
+      logger.error('Error syncing check-in:', error);
       return false;
     }
   }
@@ -269,14 +296,14 @@ class OfflineService {
   /**
    * Sincronizar check-out
    */
-  private async syncCheckOut(data: any): Promise<boolean> {
+  private async syncCheckOut(data: PendingActionData): Promise<boolean> {
     try {
       // Implementar llamada a la API/Supabase para registrar check-out
-      console.log('Syncing check-out:', data);
+      logger.debug('Syncing check-out:', data);
       // Aquí iría la lógica real de sincronización
       return true;
     } catch (error) {
-      console.error('Error syncing check-out:', error);
+      logger.error('Error syncing check-out:', error);
       return false;
     }
   }
@@ -289,7 +316,7 @@ class OfflineService {
       await AsyncStorage.multiRemove(['offline_data', 'pending_actions']);
       this.pendingActions = [];
     } catch (error) {
-      console.error('Error clearing offline data:', error);
+      logger.error('Error clearing offline data:', error);
     }
   }
 

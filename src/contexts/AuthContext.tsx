@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Worker, AuthCredentials } from '../types';
-import { supabase, signIn, signOut, getCurrentWorker, diagnoseLoginIssue } from '../lib/supabase';
+import {
+  supabase,
+  signIn,
+  signOut,
+  getCurrentWorker,
+  diagnoseLoginIssue,
+} from '../lib/supabase';
+import logger from '../utils/logger';
 
 const initialState = {
   isAuthenticated: false,
@@ -65,26 +72,33 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.ReactElement {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
   useEffect(() => {
     checkAuthStatus();
   }, []);
 
-  const checkAuthStatus = async () => {
+  const checkAuthStatus = async (): Promise<void> => {
     try {
-      console.log('🔍 VERIFICANDO ESTADO DE AUTENTICACIÓN...');
-      
+      logger.debug('🔍 VERIFICANDO ESTADO DE AUTENTICACIÓN...');
+
       // Verificar si hay una sesión activa en Supabase
-      const { data: { session }, error } = await supabase.auth.getSession();
-      console.log('📡 Sesión de Supabase:', session ? 'ACTIVA' : 'INACTIVA');
-      
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+      logger.debug('📡 Sesión de Supabase:', session ? 'ACTIVA' : 'INACTIVA');
+
       if (error) {
-        console.error('❌ Error checking session:', error);
+        logger.error('❌ Error checking session:', error);
         // Si hay un error de refresh token, limpiar el almacenamiento
         if (error.message?.includes('Refresh Token')) {
-          console.log('🧹 Clearing invalid refresh token...');
+          logger.debug('🧹 Clearing invalid refresh token...');
           await AsyncStorage.removeItem('worker');
           await supabase.auth.signOut();
         }
@@ -93,30 +107,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (session?.user) {
-        console.log('✅ Usuario autenticado en Supabase, obteniendo datos de la BD...');
+        logger.debug(
+          '✅ Usuario autenticado en Supabase, obteniendo datos de la BD...'
+        );
         // Obtener datos del worker desde la base de datos
         const worker = await getCurrentWorker();
-        console.log('👤 Worker obtenido de Supabase:', worker);
+        logger.debug('👤 Worker obtenido de Supabase:', worker);
         if (worker) {
-          console.log('✅ Worker autenticado:', worker.name);
+          logger.debug('✅ Worker autenticado:', worker.name);
           dispatch({ type: 'AUTH_SUCCESS', payload: worker });
         } else {
-          console.log('❌ Worker no encontrado en la base de datos');
+          logger.warn('❌ Worker no encontrado en la base de datos');
           dispatch({ type: 'AUTH_FAILURE', payload: 'Worker no encontrado' });
         }
       } else {
-        console.log('❌ No hay sesión activa');
+        logger.debug('❌ No hay sesión activa');
         dispatch({ type: 'AUTH_FAILURE', payload: '' });
       }
     } catch (error) {
-      console.error('❌ Error checking auth status:', error);
-      dispatch({ type: 'AUTH_FAILURE', payload: 'Error al verificar autenticación' });
+      logger.error('❌ Error checking auth status:', error);
+      dispatch({
+        type: 'AUTH_FAILURE',
+        payload: 'Error al verificar autenticación',
+      });
     }
   };
 
-
-
-  const login = async (credentials: AuthCredentials) => {
+  const login = async (credentials: AuthCredentials): Promise<void> => {
     try {
       dispatch({ type: 'AUTH_START' });
 
@@ -132,87 +149,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!worker) {
         // Ejecutar diagnóstico para ayudar a identificar el problema
-        console.log('🔍 Worker no encontrado, ejecutando diagnóstico...');
+        logger.debug('🔍 Worker no encontrado, ejecutando diagnóstico...');
         await diagnoseLoginIssue(credentials.email);
-        throw new Error('Worker no encontrado o inactivo. Revisa la consola para más detalles.');
+        throw new Error(
+          'Worker no encontrado o inactivo. Revisa la consola para más detalles.'
+        );
       }
 
       // Guardar datos del worker en AsyncStorage
       await AsyncStorage.setItem('worker', JSON.stringify(worker));
-      
+
       // Guardar token de sesión si existe
       if (authData.session?.access_token) {
         await AsyncStorage.setItem('token', authData.session.access_token);
-        console.log('✅ Token guardado en AsyncStorage');
+        logger.debug('✅ Token guardado en AsyncStorage');
       }
 
-      console.log('👤 Worker autenticado:', worker);
+      logger.debug('👤 Worker autenticado:', worker);
       dispatch({ type: 'AUTH_SUCCESS', payload: worker });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error de autenticación';
-      console.error('Error en login:', errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Error de autenticación';
+      logger.error('Error en login:', errorMessage);
       dispatch({ type: 'AUTH_FAILURE', payload: errorMessage });
     }
   };
 
-  const logout = async () => {
+  const logout = async (): Promise<void> => {
     try {
       // Cerrar sesión en Supabase
       await signOut();
-      
+
       // Limpiar AsyncStorage
       await AsyncStorage.multiRemove(['worker', 'token', 'refresh_token']);
-      
+
       dispatch({ type: 'AUTH_LOGOUT' });
     } catch (error) {
-      console.error('Error during logout:', error);
+      logger.error('Error during logout:', error);
       // Aún así limpiar el estado local
       await AsyncStorage.multiRemove(['worker', 'token', 'refresh_token']);
       dispatch({ type: 'AUTH_LOGOUT' });
     }
   };
 
-  const clearError = () => {
+  const clearError = (): void => {
     dispatch({ type: 'CLEAR_ERROR' });
   };
 
-  const clearAllCache = async () => {
+  const clearAllCache = async (): Promise<void> => {
     try {
-      console.log('🧹 INICIANDO LIMPIEZA COMPLETA DE CACHÉ...');
-      
+      logger.debug('🧹 INICIANDO LIMPIEZA COMPLETA DE CACHÉ...');
+
       // 1. Verificar qué hay en AsyncStorage antes de limpiar
       const workerData = await AsyncStorage.getItem('worker');
-      console.log('📋 Datos de worker antes de limpiar:', workerData);
-      
+      logger.debug('📋 Datos de worker antes de limpiar:', workerData);
+
       // 2. Limpiar AsyncStorage completamente
       await AsyncStorage.clear();
-      console.log('✅ AsyncStorage limpiado');
-      
+      logger.debug('✅ AsyncStorage limpiado');
+
       // 3. Cerrar sesión en Supabase de forma agresiva
       await supabase.auth.signOut();
-      console.log('✅ Sesión de Supabase cerrada');
-      
+      logger.debug('✅ Sesión de Supabase cerrada');
+
       // 4. Limpiar cualquier caché del navegador (si estamos en web)
       if (typeof window !== 'undefined') {
         // Limpiar localStorage y sessionStorage también
         window.localStorage.clear();
         window.sessionStorage.clear();
-        console.log('✅ Storage del navegador limpiado');
+        logger.debug('✅ Storage del navegador limpiado');
       }
-      
+
       // 5. Resetear el estado
       dispatch({ type: 'AUTH_LOGOUT' });
-      console.log('✅ Estado de autenticación reseteado');
-      
+      logger.debug('✅ Estado de autenticación reseteado');
+
       // 6. Forzar recarga de la página en web
       if (typeof window !== 'undefined') {
-        console.log('🔄 Forzando recarga de la página...');
+        logger.debug('🔄 Forzando recarga de la página...');
         window.location.reload();
       }
-      
-      console.log('🎉 LIMPIEZA COMPLETA FINALIZADA');
+
+      logger.debug('🎉 LIMPIEZA COMPLETA FINALIZADA');
     } catch (error) {
-      console.error('❌ Error limpiando caché:', error);
+      logger.error('❌ Error limpiando caché:', error);
     }
   };
 
@@ -227,7 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
+export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');

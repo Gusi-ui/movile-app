@@ -14,6 +14,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useOfflineSync } from '../hooks/useOfflineSync';
 import { supabase } from '../lib/supabase';
+import logger from '../utils/logger';
+import { Colors } from '../constants/colors';
 
 interface WorkerInfo {
   id: string;
@@ -74,7 +76,7 @@ export default function ProfileScreen(): React.JSX.Element {
         setWorkerInfo(data);
       }
     } catch (error) {
-      console.error('Error loading worker info:', error);
+      logger.error('Error loading worker info:', error);
     } finally {
       setLoading(false);
     }
@@ -96,10 +98,10 @@ export default function ProfileScreen(): React.JSX.Element {
         {
           text: 'Cerrar Sesión',
           style: 'destructive',
-          onPress: async () => {
+          onPress: async (): Promise<void> => {
             try {
               await logout();
-            } catch (error) {
+            } catch {
               Alert.alert('Error', 'No se pudo cerrar la sesión');
             }
           },
@@ -112,7 +114,7 @@ export default function ProfileScreen(): React.JSX.Element {
     key: K,
     value: UserSettings[K]
   ): void => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
+    setSettings(prev => ({ ...prev, [key]: value }));
     // Aquí se podría guardar en AsyncStorage o en Supabase
 
     // Si se activan las notificaciones, solicitar permisos
@@ -136,7 +138,7 @@ export default function ProfileScreen(): React.JSX.Element {
           ]
         );
         // Revertir el setting si no se concedió el permiso
-        setSettings((prev) => ({ ...prev, notifications_enabled: false }));
+        setSettings(prev => ({ ...prev, notifications_enabled: false }));
       } else {
         // Mostrar notificación de prueba
         await showNotification({
@@ -165,7 +167,7 @@ export default function ProfileScreen(): React.JSX.Element {
     });
   };
 
-  const renderProfileHeader = () => (
+  const renderProfileHeader = (): React.ReactElement => (
     <View style={styles.profileHeader}>
       <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
@@ -194,7 +196,7 @@ export default function ProfileScreen(): React.JSX.Element {
     </View>
   );
 
-  const renderPersonalInfo = () => (
+  const renderPersonalInfo = (): React.ReactElement => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>👤 Información Personal</Text>
 
@@ -216,14 +218,18 @@ export default function ProfileScreen(): React.JSX.Element {
               style={[
                 styles.statusBadge,
                 {
-                  backgroundColor: workerInfo.is_active ? '#dcfce7' : '#fecaca',
+                  backgroundColor: workerInfo.is_active
+                    ? Colors.successLight
+                    : Colors.errorLight,
                 },
               ]}
             >
               <Text
                 style={[
                   styles.statusText,
-                  { color: workerInfo.is_active ? '#22c55e' : '#ef4444' },
+                  {
+                    color: workerInfo.is_active ? Colors.success : Colors.error,
+                  },
                 ]}
               >
                 {workerInfo.is_active ? 'Activa' : 'Inactiva'}
@@ -235,7 +241,7 @@ export default function ProfileScreen(): React.JSX.Element {
     </View>
   );
 
-  const renderSettings = () => (
+  const renderSettings = (): React.ReactElement => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>⚙️ Configuración</Text>
 
@@ -253,7 +259,7 @@ export default function ProfileScreen(): React.JSX.Element {
             value={
               settings.notifications_enabled && permissionStatus === 'granted'
             }
-            onValueChange={(value) =>
+            onValueChange={value =>
               updateSetting('notifications_enabled', value)
             }
             trackColor={{ false: '#f1f5f9', true: '#3b82f6' }}
@@ -271,7 +277,7 @@ export default function ProfileScreen(): React.JSX.Element {
           </View>
           <Switch
             value={settings.location_tracking}
-            onValueChange={(value) => updateSetting('location_tracking', value)}
+            onValueChange={value => updateSetting('location_tracking', value)}
             trackColor={{ false: '#f1f5f9', true: '#3b82f6' }}
             thumbColor={settings.location_tracking ? '#ffffff' : '#f4f4f5'}
           />
@@ -286,7 +292,7 @@ export default function ProfileScreen(): React.JSX.Element {
           </View>
           <Switch
             value={settings.auto_checkin}
-            onValueChange={(value) => updateSetting('auto_checkin', value)}
+            onValueChange={value => updateSetting('auto_checkin', value)}
             trackColor={{ false: '#f1f5f9', true: '#3b82f6' }}
             thumbColor={settings.auto_checkin ? '#ffffff' : '#f4f4f5'}
           />
@@ -295,7 +301,7 @@ export default function ProfileScreen(): React.JSX.Element {
     </View>
   );
 
-  const renderAppSettings = () => (
+  const renderAppSettings = (): React.ReactElement => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>📱 Configuración de la App</Text>
 
@@ -329,7 +335,7 @@ export default function ProfileScreen(): React.JSX.Element {
     </View>
   );
 
-  const renderHelpAndSupport = () => (
+  const renderHelpAndSupport = (): React.ReactElement => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>📞 Ayuda y Soporte</Text>
 
@@ -380,12 +386,12 @@ export default function ProfileScreen(): React.JSX.Element {
       } else {
         Alert.alert('Advertencia', 'Algunos datos no pudieron sincronizarse');
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Error durante la sincronización');
     }
   };
 
-  const renderActions = () => (
+  const renderActions = (): React.ReactElement => (
     <View style={styles.section}>
       <TouchableOpacity
         style={[
@@ -428,7 +434,7 @@ export default function ProfileScreen(): React.JSX.Element {
     </View>
   );
 
-  const renderAppInfo = () => (
+  const renderAppInfo = (): React.ReactElement => (
     <View style={styles.appInfo}>
       <Text style={styles.appInfoText}>SAD LAS Worker App</Text>
       <Text style={styles.appInfoText}>Versión 1.0.0</Text>
@@ -460,20 +466,20 @@ export default function ProfileScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingText: {
     fontSize: 16,
     textAlign: 'center',
     marginTop: 50,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   profileHeader: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     paddingVertical: 24,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: Colors.border,
     alignItems: 'center',
   },
   avatarContainer: {
@@ -483,14 +489,14 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#3b82f6',
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
     fontSize: 28,
     fontWeight: '700',
-    color: 'white',
+    color: Colors.textLight,
   },
   profileInfo: {
     alignItems: 'center',
@@ -498,39 +504,39 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 4,
   },
   profileEmail: {
     fontSize: 14,
-    color: '#64748b',
+    color: Colors.textSecondary,
     marginBottom: 4,
   },
   profileType: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3b82f6',
+    color: Colors.primary,
     marginBottom: 4,
   },
   profileSince: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: Colors.textTertiary,
   },
   section: {
     marginTop: 16,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: Colors.border,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: Colors.backgroundLight,
   },
   infoList: {
     paddingVertical: 8,
@@ -544,12 +550,12 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1e293b',
+    color: Colors.textPrimary,
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -577,12 +583,12 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 2,
   },
   settingDescription: {
     fontSize: 12,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   menuItem: {
     flexDirection: 'row',
@@ -591,12 +597,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: Colors.backgroundLight,
   },
   menuItemLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#1e293b',
+    color: Colors.textPrimary,
   },
   menuItemRight: {
     flexDirection: 'row',
@@ -604,15 +610,15 @@ const styles = StyleSheet.create({
   },
   menuItemValue: {
     fontSize: 14,
-    color: '#64748b',
+    color: Colors.textSecondary,
     marginRight: 8,
   },
   menuItemArrow: {
     fontSize: 16,
-    color: '#94a3b8',
+    color: Colors.textTertiary,
   },
   actionButton: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Colors.backgroundLight,
     marginHorizontal: 20,
     marginVertical: 8,
     paddingVertical: 16,
@@ -622,39 +628,39 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#475569',
+    color: Colors.textGray,
   },
   dangerButton: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: Colors.errorLight,
   },
   dangerButtonText: {
-    color: '#dc2626',
+    color: Colors.error,
   },
   disabledButton: {
-    backgroundColor: '#e2e8f0',
+    backgroundColor: Colors.border,
     opacity: 0.6,
   },
   disabledButtonText: {
-    color: '#94a3b8',
+    color: Colors.textTertiary,
   },
   syncStatus: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
     padding: 16,
     marginHorizontal: 20,
     marginVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: Colors.border,
   },
   syncStatusText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.textGray,
     marginBottom: 4,
   },
   pendingText: {
     fontSize: 12,
-    color: '#f59e0b',
+    color: Colors.warning,
     fontStyle: 'italic',
   },
   appInfo: {
@@ -663,7 +669,7 @@ const styles = StyleSheet.create({
   },
   appInfoText: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: Colors.textTertiary,
     marginBottom: 4,
   },
 });

@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Ejecutando validaciones pre-commit estrictas..."
+
+# Ejecutar lint-staged para archivos modificados
+npx lint-staged
+
+# Verificar que no hay errores de TypeScript
+echo "🔧 Verificando TypeScript..."
+npx tsc --noEmit
+
+# Ejecutar tests
+echo "🧪 Ejecutando tests..."
+npm test -- --passWithNoTests --watchAll=false
+
+echo "✅ Todas las validaciones pasaron. Commit permitido."

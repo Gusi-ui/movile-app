@@ -2,9 +2,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient, { authenticateWorker } from '../api';
 
 // Mock AsyncStorage
-jest.mock('@react-native-async-storage/async-storage', () =>
-  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
-);
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(),
+  setItem: jest.fn(),
+  removeItem: jest.fn(),
+  clear: jest.fn(),
+  getAllKeys: jest.fn(),
+  multiGet: jest.fn(),
+  multiSet: jest.fn(),
+  multiRemove: jest.fn(),
+}));
 
 // Mock fetch
 declare const global: typeof globalThis & {
@@ -70,7 +77,10 @@ describe('API Client', () => {
         json: async () => ({ message: 'Invalid credentials' }),
       });
 
-      const result = await authenticateWorker('test@example.com', 'wrong-password');
+      const result = await authenticateWorker(
+        'test@example.com',
+        'wrong-password'
+      );
 
       expect(result.data).toBeNull();
       expect(result.error).toBe('Invalid credentials');
@@ -90,6 +100,7 @@ describe('API Client', () => {
 
   describe('authenticated requests', () => {
     beforeEach(async () => {
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue('mock-auth-token');
       await AsyncStorage.setItem('token', 'mock-auth-token');
     });
 

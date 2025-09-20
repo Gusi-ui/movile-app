@@ -1,4 +1,4 @@
-const fs = require('fs');
+import fs from 'fs';
 
 // Función para generar un UUID válido
 function generateUUID() {

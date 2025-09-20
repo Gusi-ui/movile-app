@@ -7,11 +7,13 @@ import {
   View,
 } from 'react-native';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { supabase } from '../lib/supabase';
+import logger from '../utils/logger';
+import { Colors } from '../constants/colors';
 
 type Row = {
   id: string;
@@ -19,9 +21,21 @@ type Row = {
   schedule: unknown;
   start_date: string;
   end_date: string | null;
-  user_name?: string;
-  user_address?: string;
+  user_name?: string | undefined;
+  user_address?: string | undefined;
 };
+
+interface AssignmentWithUser {
+  id: string;
+  assignment_type: string;
+  schedule: unknown;
+  start_date: string;
+  end_date: string | null;
+  users?: {
+    name?: string | undefined;
+    address?: string | undefined;
+  };
+}
 
 type QuickAction = {
   id: string;
@@ -61,6 +75,106 @@ export default function TodayScreen(): React.JSX.Element {
     return `${y}-${m}-${day}`;
   }, []);
 
+  const dayKey = useMemo(() => {
+    const d = new Date();
+    const dow = d.getDay();
+    return (
+      [
+        'sunday',
+        'monday',
+        'tuesday',
+        'wednesday',
+        'thursday',
+        'friday',
+        'saturday',
+      ][dow] ?? 'monday'
+    );
+  }, []);
+
+  type TimeSlotRange = { start: string; end: string };
+
+  const getTodaySlots = useCallback(
+    (schedule: unknown, assignmentType: string): TimeSlotRange[] => {
+      try {
+        const sc =
+          typeof schedule === 'string'
+            ? (JSON.parse(schedule) as Record<string, unknown>)
+            : (schedule as Record<string, unknown>);
+
+        const isSunday: boolean = new Date().getDay() === 0;
+        const type = (assignmentType ?? '').toLowerCase();
+        const shouldUseHoliday: boolean = isSunday || type === 'festivos';
+
+        const dayConfig =
+          (sc?.[dayKey] as Record<string, unknown>) ?? undefined;
+        const daySlotsRaw = Array.isArray(dayConfig?.['timeSlots'])
+          ? (dayConfig?.['timeSlots'] as unknown[])
+          : [];
+        const daySlots: TimeSlotRange[] = daySlotsRaw
+          .map((slot: unknown) => {
+            const s = slot as Record<string, unknown>;
+            const start = (s?.['start'] as string | undefined) ?? '';
+            const end = (s?.['end'] as string | undefined) ?? '';
+            if (/^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(end)) {
+              return { start, end };
+            }
+            return null;
+          })
+          .filter((v): v is TimeSlotRange => v !== null);
+
+        if (shouldUseHoliday || daySlots.length === 0) {
+          const holidayConfig =
+            (sc?.['holiday_config'] as Record<string, unknown> | undefined) ??
+            undefined;
+          const holidayFromConfig = Array.isArray(
+            holidayConfig?.['holiday_timeSlots']
+          )
+            ? (holidayConfig?.['holiday_timeSlots'] as unknown[])
+            : [];
+
+          const holidayDay = (sc?.['holiday'] as Record<string, unknown>) ?? {};
+          const holidayFromDay = Array.isArray(holidayDay?.['timeSlots'])
+            ? (holidayDay?.['timeSlots'] as unknown[])
+            : [];
+
+          const rawHoliday =
+            holidayFromConfig.length > 0 ? holidayFromConfig : holidayFromDay;
+
+          const holidaySlots: TimeSlotRange[] = rawHoliday
+            .map((slot: unknown) => {
+              const s = slot as Record<string, unknown>;
+              const start = (s?.['start'] as string | undefined) ?? '';
+              const end = (s?.['end'] as string | undefined) ?? '';
+              if (/^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(end)) {
+                return { start, end };
+              }
+              return null;
+            })
+            .filter((v): v is TimeSlotRange => v !== null);
+
+          if (holidaySlots.length > 0) return holidaySlots;
+        }
+
+        return daySlots;
+      } catch {
+        return [];
+      }
+    },
+    [dayKey]
+  );
+
+  const getStartMinutes = useCallback(
+    (schedule: unknown, assignmentType: string): number => {
+      const slots = getTodaySlots(schedule, assignmentType);
+      if (slots.length > 0) {
+        const [hh, mm] = slots[0]?.start.split(':') || [];
+        return Number(hh) * 60 + Number(mm);
+      }
+      return 24 * 60 + 1;
+    },
+    [getTodaySlots]
+  );
+
   useEffect(() => {
     const load = async (): Promise<void> => {
       setLoading(true);
@@ -75,12 +189,12 @@ export default function TodayScreen(): React.JSX.Element {
           .select('id')
           .eq('email', email)
           .single();
-        
+
         if (werr !== null || !w) {
           setRows([]);
           return;
         }
-        
+
         const workerId = (w as { id: string }).id;
 
         // Cargar asignaciones con información del usuario
@@ -102,7 +216,7 @@ export default function TodayScreen(): React.JSX.Element {
 
         if (error === null) {
           const processedData =
-            (data as any[])?.map((item) => ({
+            (data as AssignmentWithUser[])?.map(item => ({
               ...item,
               user_name: item.users?.name,
               user_address: item.users?.address,
@@ -140,22 +254,36 @@ export default function TodayScreen(): React.JSX.Element {
 
           // Programar recordatorios para los servicios de hoy
           const todayServices = processedData
-            .filter((item) => item.start_date === todayKey)
-            .map((item) => {
+            .filter(item => item.start_date === todayKey)
+            .map(item => {
               const slots = getTodaySlots(item.schedule, item.assignment_type);
-              const firstSlot = slots[0];
+              if (slots.length > 0) {
+                const startMinutes = getStartMinutes(
+                  item.schedule,
+                  item.assignment_type
+                );
+                const startTime = new Date();
+                startTime.setHours(Math.floor(startMinutes / 60));
+                startTime.setMinutes(startMinutes % 60);
+                startTime.setSeconds(0);
+                startTime.setMilliseconds(0);
 
-              if (firstSlot) {
-                const [hours, minutes] = firstSlot.start.split(':').map(Number);
-                const serviceDate = new Date();
-                serviceDate.setHours(hours || 0, minutes || 0, 0, 0);
-
-                return {
+                const serviceObj: {
+                  id: string;
+                  title: string;
+                  startTime: Date;
+                  userAddress?: string;
+                } = {
                   id: item.id,
-                  title: `Servicio - ${item.user_name || 'Usuario'}`,
-                  startTime: serviceDate,
-                  userAddress: item.user_address,
+                  title: `Servicio: ${item.user_name || 'Sin nombre'}`,
+                  startTime,
                 };
+
+                if (item.user_address) {
+                  serviceObj.userAddress = item.user_address;
+                }
+
+                return serviceObj;
               }
               return null;
             })
@@ -165,8 +293,8 @@ export default function TodayScreen(): React.JSX.Element {
             );
 
           if (todayServices.length > 0) {
-            scheduleServiceReminders(todayServices).catch((error: any) => {
-              console.error('Error scheduling service reminders:', error);
+            scheduleServiceReminders(todayServices).catch((error: unknown) => {
+              logger.error('Error scheduling service reminders:', error);
             });
           }
         }
@@ -175,106 +303,14 @@ export default function TodayScreen(): React.JSX.Element {
       }
     };
     load().catch(() => setLoading(false));
-  }, [todayKey, currentWorker?.email, completedIds]);
-
-  const dayKey = useMemo(() => {
-    const d = new Date();
-    const dow = d.getDay();
-    return (
-      [
-        'sunday',
-        'monday',
-        'tuesday',
-        'wednesday',
-        'thursday',
-        'friday',
-        'saturday',
-      ][dow] ?? 'monday'
-    );
-  }, []);
-
-  type TimeSlotRange = { start: string; end: string };
-
-  const getTodaySlots = (
-    schedule: unknown,
-    assignmentType: string
-  ): TimeSlotRange[] => {
-    try {
-      const sc =
-        typeof schedule === 'string'
-          ? (JSON.parse(schedule) as Record<string, unknown>)
-          : (schedule as Record<string, unknown>);
-
-      const isSunday: boolean = new Date().getDay() === 0;
-      const type = (assignmentType ?? '').toLowerCase();
-      const shouldUseHoliday: boolean = isSunday || type === 'festivos';
-
-      const dayConfig = (sc?.[dayKey] as Record<string, unknown>) ?? undefined;
-      const daySlotsRaw = Array.isArray(dayConfig?.['timeSlots'])
-        ? (dayConfig?.['timeSlots'] as unknown[])
-        : [];
-      const daySlots: TimeSlotRange[] = daySlotsRaw
-        .map((slot: unknown) => {
-          const s = slot as Record<string, unknown>;
-          const start = (s?.['start'] as string | undefined) ?? '';
-          const end = (s?.['end'] as string | undefined) ?? '';
-          if (/^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(end)) {
-            return { start, end };
-          }
-          return null;
-        })
-        .filter((v): v is TimeSlotRange => v !== null);
-
-      if (shouldUseHoliday || daySlots.length === 0) {
-        const holidayConfig =
-          (sc?.['holiday_config'] as Record<string, unknown> | undefined) ??
-          undefined;
-        const holidayFromConfig = Array.isArray(
-          holidayConfig?.['holiday_timeSlots']
-        )
-          ? (holidayConfig?.['holiday_timeSlots'] as unknown[])
-          : [];
-
-        const holidayDay = (sc?.['holiday'] as Record<string, unknown>) ?? {};
-        const holidayFromDay = Array.isArray(holidayDay?.['timeSlots'])
-          ? (holidayDay?.['timeSlots'] as unknown[])
-          : [];
-
-        const rawHoliday =
-          holidayFromConfig.length > 0 ? holidayFromConfig : holidayFromDay;
-
-        const holidaySlots: TimeSlotRange[] = rawHoliday
-          .map((slot: unknown) => {
-            const s = slot as Record<string, unknown>;
-            const start = (s?.['start'] as string | undefined) ?? '';
-            const end = (s?.['end'] as string | undefined) ?? '';
-            if (/^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(end)) {
-              return { start, end };
-            }
-            return null;
-          })
-          .filter((v): v is TimeSlotRange => v !== null);
-
-        if (holidaySlots.length > 0) return holidaySlots;
-      }
-
-      return daySlots;
-    } catch {
-      return [];
-    }
-  };
-
-  const getStartMinutes = (
-    schedule: unknown,
-    assignmentType: string
-  ): number => {
-    const slots = getTodaySlots(schedule, assignmentType);
-    if (slots.length > 0) {
-      const [hh, mm] = slots[0]?.start.split(':') || [];
-      return Number(hh) * 60 + Number(mm);
-    }
-    return 24 * 60 + 1;
-  };
+  }, [
+    todayKey,
+    currentWorker?.email,
+    completedIds,
+    getTodaySlots,
+    scheduleServiceReminders,
+    getStartMinutes,
+  ]);
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -285,19 +321,19 @@ export default function TodayScreen(): React.JSX.Element {
       const tb = getStartMinutes(b.schedule, b.assignment_type);
       return ta - tb;
     });
-  }, [rows, completedIds]);
+  }, [rows, completedIds, getStartMinutes]);
 
   // Separar servicios de hoy y próximos
   const todayServices = useMemo(() => {
-    return sortedRows.filter((row) => row.start_date === todayKey);
+    return sortedRows.filter(row => row.start_date === todayKey);
   }, [sortedRows, todayKey]);
 
   const upcomingServices = useMemo(() => {
-    return sortedRows.filter((row) => row.start_date > todayKey).slice(0, 3);
+    return sortedRows.filter(row => row.start_date > todayKey).slice(0, 3);
   }, [sortedRows, todayKey]);
 
   const handleComplete = async (assignmentId: string): Promise<void> => {
-    setCompletedIds((prev) => {
+    setCompletedIds(prev => {
       const next = new Set(prev);
       next.add(assignmentId);
       return next;
@@ -320,7 +356,7 @@ export default function TodayScreen(): React.JSX.Element {
       id: '1',
       title: 'Marcar Inicio',
       icon: '▶️',
-      onPress: () => {
+      onPress: (): void => {
         Alert.alert('Acción', 'Marcar inicio de jornada');
         notifyAssignmentUpdate(
           'Jornada Iniciada',
@@ -334,7 +370,7 @@ export default function TodayScreen(): React.JSX.Element {
       id: '2',
       title: 'Marcar Fin',
       icon: '⏹️',
-      onPress: () => {
+      onPress: (): void => {
         Alert.alert('Acción', 'Marcar fin de jornada');
         notifyAssignmentUpdate(
           'Jornada Finalizada',
@@ -348,13 +384,13 @@ export default function TodayScreen(): React.JSX.Element {
       id: '3',
       title: 'Pausa',
       icon: '⏸️',
-      onPress: () => Alert.alert('Acción', 'Marcar pausa'),
+      onPress: (): void => Alert.alert('Acción', 'Marcar pausa'),
     },
     {
       id: '4',
       title: 'Emergencia',
       icon: '🚨',
-      onPress: () => {
+      onPress: (): void => {
         Alert.alert('Acción', 'Reportar emergencia');
         notifyAssignmentUpdate(
           '🚨 Emergencia',
@@ -397,7 +433,10 @@ export default function TodayScreen(): React.JSX.Element {
     },
   ];
 
-  const renderServiceCard = (item: Row, isToday: boolean = true) => {
+  const renderServiceCard = (
+    item: Row,
+    isToday: boolean = true
+  ): React.ReactElement => {
     const slots = getTodaySlots(item.schedule, item.assignment_type);
     const isCompleted = completedIds.has(item.id);
 
@@ -456,7 +495,7 @@ export default function TodayScreen(): React.JSX.Element {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>🕐 Horarios de Hoy</Text>
         {todayServices.length > 0 ? (
-          todayServices.map((item) => renderServiceCard(item, true))
+          todayServices.map(item => renderServiceCard(item, true))
         ) : (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>
@@ -470,7 +509,7 @@ export default function TodayScreen(): React.JSX.Element {
       {upcomingServices.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📅 Próximos Servicios</Text>
-          {upcomingServices.map((item) => renderServiceCard(item, false))}
+          {upcomingServices.map(item => renderServiceCard(item, false))}
         </View>
       )}
 
@@ -478,7 +517,7 @@ export default function TodayScreen(): React.JSX.Element {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>⚡ Acciones Rápidas</Text>
         <View style={styles.quickActionsContainer}>
-          {quickActions.map((action) => (
+          {quickActions.map(action => (
             <TouchableOpacity
               key={action.id}
               style={styles.quickActionButton}
@@ -495,7 +534,7 @@ export default function TodayScreen(): React.JSX.Element {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📊 Resumen del Día</Text>
         <View style={styles.infoCardsContainer}>
-          {infoCards.map((card) => (
+          {infoCards.map(card => (
             <View
               key={card.id}
               style={[styles.infoCard, { borderLeftColor: card.color }]}
@@ -516,13 +555,13 @@ export default function TodayScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingText: {
     fontSize: 16,
     textAlign: 'center',
     marginTop: 50,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   section: {
     padding: 16,
@@ -532,7 +571,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 12,
-    color: '#1e293b',
+    color: Colors.textPrimary,
   },
   infoCardsContainer: {
     flexDirection: 'row',
@@ -542,11 +581,11 @@ const styles = StyleSheet.create({
   infoCard: {
     flex: 1,
     minWidth: '45%',
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 16,
     borderLeftWidth: 4,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -555,33 +594,33 @@ const styles = StyleSheet.create({
   infoCardValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 4,
   },
   infoCardTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#475569',
+    color: Colors.textMuted,
     marginBottom: 2,
   },
   infoCardSubtitle: {
     fontSize: 12,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   card: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
   completedCard: {
-    backgroundColor: '#f0fdf4',
-    borderColor: '#22c55e',
+    backgroundColor: Colors.successLight,
+    borderColor: Colors.success,
     borderWidth: 1,
   },
   cardHeader: {
@@ -593,13 +632,13 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1e293b',
+    color: Colors.textPrimary,
   },
   completedBadge: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#22c55e',
-    backgroundColor: '#dcfce7',
+    color: Colors.success,
+    backgroundColor: Colors.successLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -607,12 +646,12 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#3b82f6',
+    color: Colors.primary,
     marginBottom: 4,
   },
   cardMeta: {
     fontSize: 12,
-    color: '#64748b',
+    color: Colors.textSecondary,
     marginBottom: 8,
   },
   slotsContainer: {
@@ -621,30 +660,30 @@ const styles = StyleSheet.create({
   slot: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#374151',
+    color: Colors.textGray,
     marginBottom: 2,
   },
   completeButton: {
-    backgroundColor: '#22c55e',
+    backgroundColor: Colors.success,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: 'center',
   },
   completeButtonText: {
-    color: 'white',
+    color: Colors.backgroundCard,
     fontWeight: '600',
     fontSize: 14,
   },
   emptyState: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 24,
     alignItems: 'center',
   },
   emptyStateText: {
     fontSize: 14,
-    color: '#64748b',
+    color: Colors.textSecondary,
     textAlign: 'center',
   },
   quickActionsContainer: {
@@ -655,11 +694,11 @@ const styles = StyleSheet.create({
   quickActionButton: {
     flex: 1,
     minWidth: '45%',
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -672,7 +711,7 @@ const styles = StyleSheet.create({
   quickActionTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.textGray,
     textAlign: 'center',
   },
 });

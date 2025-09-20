@@ -13,6 +13,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { supabase } from '../lib/supabase';
+import logger from '../utils/logger';
+import { Colors } from '../constants/colors';
 
 interface AssignmentRow {
   id: string;
@@ -21,6 +23,17 @@ interface AssignmentRow {
   start_date: string;
   end_date: string | null;
   users: { name: string | null; surname: string | null };
+}
+
+interface DatabaseAssignmentRow {
+  id: string;
+  assignment_type: string;
+  schedule: unknown;
+  start_date: string;
+  end_date: string | null;
+  users:
+    | { name: string | null; surname: string | null }
+    | { name: string | null; surname: string | null }[];
 }
 
 interface ServiceRow {
@@ -49,17 +62,17 @@ export default function HomeScreen(): React.JSX.Element {
     thisMonth: 0,
   });
 
-  const toMinutes = (hhmm: string): number => {
+  const toMinutes = useCallback((hhmm: string): number => {
     const [h, m] = hhmm.split(':');
     return Number(h) * 60 + Number(m);
-  };
+  }, []);
 
   const getTodaySlots = useCallback(
     (
       schedule: unknown,
       assignmentType: string,
       useHoliday: boolean
-    ): Array<{ start: string; end: string }> => {
+    ): { start: string; end: string }[] => {
       try {
         const sc =
           typeof schedule === 'string'
@@ -78,9 +91,7 @@ export default function HomeScreen(): React.JSX.Element {
         ];
         const dayName = dayNames[today] ?? 'monday';
 
-        const parseSlots = (
-          raw: unknown[]
-        ): Array<{ start: string; end: string }> =>
+        const parseSlots = (raw: unknown[]): { start: string; end: string }[] =>
           raw
             .map((s: unknown) => {
               const slot = s as Record<string, unknown>;
@@ -88,7 +99,7 @@ export default function HomeScreen(): React.JSX.Element {
               const end = (slot?.['end'] as string | undefined) ?? '';
               const ok = (t: string): boolean => /^\d{1,2}:\d{2}$/.test(t);
               if (ok(start) && ok(end)) {
-                const pad = (t: string) =>
+                const pad = (t: string): string =>
                   t
                     .split(':')
                     .map((p, i) => (i === 0 ? p.padStart(2, '0') : p))
@@ -158,7 +169,7 @@ export default function HomeScreen(): React.JSX.Element {
     const now = new Date();
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-    const rows: ServiceRow[] = todayAssignments.flatMap((a) => {
+    const rows: ServiceRow[] = todayAssignments.flatMap(a => {
       const slots = getTodaySlots(
         a.schedule,
         a.assignment_type,
@@ -166,7 +177,7 @@ export default function HomeScreen(): React.JSX.Element {
       );
       const label =
         `${a.users?.name ?? ''} ${a.users?.surname ?? ''}`.trim() || 'Servicio';
-      return slots.map((s) => {
+      return slots.map(s => {
         const sm = toMinutes(s.start);
         const em = toMinutes(s.end);
         let state: ServiceRow['state'] = 'pending';
@@ -349,12 +360,12 @@ export default function HomeScreen(): React.JSX.Element {
 
         if (err === null && rows !== null) {
           // Transformar datos para que coincidan con la interfaz
-          const transformedRows = rows.map((row: any) => ({
+          const transformedRows = rows.map((row: DatabaseAssignmentRow) => ({
             ...row,
             users: Array.isArray(row.users) ? row.users[0] : row.users,
           })) as AssignmentRow[];
 
-          const filtered = transformedRows.filter((a) => {
+          const filtered = transformedRows.filter(a => {
             const slots = getTodaySlots(
               a.schedule,
               a.assignment_type,
@@ -368,7 +379,7 @@ export default function HomeScreen(): React.JSX.Element {
           setTodayAssignments(filtered);
 
           // Programar recordatorios de servicios - convertir formato
-          const reminders = filtered.map((assignment) => ({
+          const reminders = filtered.map(assignment => ({
             id: assignment.id,
             title:
               `${assignment.users.name || ''} ${assignment.users.surname || ''}`.trim() ||
@@ -383,7 +394,7 @@ export default function HomeScreen(): React.JSX.Element {
         // Cargar estadísticas adicionales (similar al web)
         // ... resto de la lógica de carga
       } catch (error) {
-        console.error('Error loading data:', error);
+        logger.error('Error loading data:', error);
       } finally {
         setLoading(false);
       }
@@ -525,29 +536,29 @@ export default function HomeScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   header: {
     padding: 20,
     paddingTop: 50,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
   },
   greeting: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: Colors.textDark,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.textMuted,
   },
   section: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     margin: 16,
     padding: 20,
     borderRadius: 16,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -556,21 +567,21 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: Colors.textDark,
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.textMuted,
     marginBottom: 16,
   },
   loadingText: {
-    color: '#6b7280',
+    color: Colors.textMuted,
     textAlign: 'center',
     padding: 20,
   },
   noServicesText: {
-    color: '#6b7280',
+    color: Colors.textMuted,
     textAlign: 'center',
     padding: 20,
   },
@@ -583,16 +594,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   pendingCard: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#fcd34d',
+    backgroundColor: Colors.warningLight,
+    borderColor: Colors.warning,
   },
   inProgressCard: {
-    backgroundColor: '#d1fae5',
-    borderColor: '#34d399',
+    backgroundColor: Colors.successLight,
+    borderColor: Colors.success,
   },
   doneCard: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#f87171',
+    backgroundColor: Colors.errorLight,
+    borderColor: Colors.error,
   },
   serviceHeader: {
     flexDirection: 'row',
@@ -602,17 +613,17 @@ const styles = StyleSheet.create({
   serviceNumber: {
     width: 40,
     height: 40,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#3b82f6',
+    borderColor: Colors.info,
     marginRight: 12,
   },
   serviceNumberText: {
     fontWeight: 'bold',
-    color: '#3b82f6',
+    color: Colors.info,
   },
   serviceInfo: {
     flex: 1,
@@ -620,12 +631,12 @@ const styles = StyleSheet.create({
   serviceName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: Colors.textDark,
     marginBottom: 4,
   },
   serviceTime: {
     fontSize: 14,
-    color: '#374151',
+    color: Colors.textGray,
     marginBottom: 8,
   },
   badge: {
@@ -635,29 +646,29 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   pendingBadge: {
-    backgroundColor: 'rgba(251, 191, 36, 0.8)',
+    backgroundColor: Colors.statusPending,
   },
   inProgressBadge: {
-    backgroundColor: 'rgba(34, 197, 94, 0.8)',
+    backgroundColor: Colors.success,
   },
   doneBadge: {
-    backgroundColor: 'rgba(239, 68, 68, 0.8)',
+    backgroundColor: Colors.error,
   },
   badgeText: {
     fontSize: 12,
     fontWeight: '500',
-    color: 'white',
+    color: Colors.textLight,
   },
   detailsButton: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.backgroundLight,
     padding: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: Colors.border,
   },
   detailsButtonText: {
     textAlign: 'center',
-    color: '#374151',
+    color: Colors.textGray,
     fontWeight: '500',
   },
   upcomingCard: {
@@ -665,7 +676,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
-    backgroundColor: '#f9fafb',
+    backgroundColor: Colors.backgroundLight,
     borderRadius: 8,
     marginBottom: 8,
   },
@@ -675,16 +686,16 @@ const styles = StyleSheet.create({
   upcomingLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1f2937',
+    color: Colors.textDark,
   },
   upcomingDescription: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.textMuted,
   },
   upcomingCount: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#3b82f6',
+    color: Colors.info,
   },
   actionsGrid: {
     flexDirection: 'row',
@@ -694,12 +705,12 @@ const styles = StyleSheet.create({
   actionCard: {
     flex: 1,
     minWidth: '45%',
-    backgroundColor: '#f9fafb',
+    backgroundColor: Colors.backgroundLight,
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: Colors.borderLight,
   },
   actionIcon: {
     fontSize: 24,
@@ -708,7 +719,7 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#374151',
+    color: Colors.textGray,
     textAlign: 'center',
   },
   statsGrid: {
@@ -720,11 +731,11 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     minWidth: '30%',
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -732,18 +743,18 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    color: '#6b7280',
+    color: Colors.textMuted,
     marginBottom: 4,
   },
   statValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: Colors.textDark,
     marginBottom: 2,
   },
   statDescription: {
     fontSize: 10,
-    color: '#9ca3af',
+    color: Colors.textTertiary,
   },
   bottomSpacing: {
     height: 100,

@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import logger from '../utils/logger';
 
 // Configurar el comportamiento de las notificaciones
 Notifications.setNotificationHandler({
@@ -17,7 +18,7 @@ Notifications.setNotificationHandler({
 export interface NotificationData {
   title: string;
   body: string;
-  data?: Record<string, any>;
+  data?: Record<string, string | number | boolean>;
   sound?: boolean;
   priority?: 'low' | 'normal' | 'high';
 }
@@ -51,14 +52,14 @@ class NotificationService {
 
       // Verificar si el dispositivo soporta notificaciones
       if (!Device.isDevice) {
-        console.warn('Notifications only work on physical devices');
+        logger.warn('Notifications only work on physical devices');
         return false;
       }
 
       // Solicitar permisos
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
-        console.warn('Notification permissions denied');
+        logger.warn('Notification permissions denied');
         return false;
       }
 
@@ -71,7 +72,7 @@ class NotificationService {
       this.isInitialized = true;
       return true;
     } catch (error) {
-      console.error('Error initializing notification service:', error);
+      logger.error('Error initializing notification service:', error);
       return false;
     }
   }
@@ -121,7 +122,7 @@ class NotificationService {
 
       return finalStatus === 'granted';
     } catch (error) {
-      console.error('Error requesting notification permissions:', error);
+      logger.error('Error requesting notification permissions:', error);
       return false;
     }
   }
@@ -136,7 +137,7 @@ class NotificationService {
         Constants.easConfig?.projectId;
 
       if (!projectId) {
-        console.warn('No project ID found for push notifications');
+        logger.warn('No project ID found for push notifications');
         return null;
       }
 
@@ -146,7 +147,7 @@ class NotificationService {
 
       return token.data;
     } catch (error) {
-      console.error('Error getting Expo push token:', error);
+      logger.error('Error getting Expo push token:', error);
       return null;
     }
   }
@@ -156,15 +157,19 @@ class NotificationService {
    */
   private setupNotificationListeners(): void {
     // Listener para notificaciones recibidas cuando la app está en primer plano
-    Notifications.addNotificationReceivedListener((notification: any) => {
-      console.log('Notification received:', notification);
-    });
+    Notifications.addNotificationReceivedListener(
+      (notification: Notifications.Notification) => {
+        logger.debug('Notification received:', notification);
+      }
+    );
 
     // Listener para respuestas a notificaciones (tap, acción)
-    Notifications.addNotificationResponseReceivedListener((response: any) => {
-      console.log('Notification response:', response);
-      this.handleNotificationResponse(response);
-    });
+    Notifications.addNotificationResponseReceivedListener(
+      (response: Notifications.NotificationResponse) => {
+        logger.debug('Notification response:', response);
+        this.handleNotificationResponse(response);
+      }
+    );
   }
 
   /**
@@ -179,10 +184,10 @@ class NotificationService {
     // Aquí se puede implementar navegación basada en el tipo de notificación
     if (data?.['type'] === 'service_reminder') {
       // Navegar a la pantalla de servicios
-      console.log('Navigate to services screen');
+      logger.debug('Navigate to services screen');
     } else if (data?.['type'] === 'assignment_update') {
       // Navegar a la pantalla de asignaciones
-      console.log('Navigate to assignments screen');
+      logger.debug('Navigate to assignments screen');
     }
   }
 
@@ -194,7 +199,7 @@ class NotificationService {
   ): Promise<void> {
     try {
       if (!this.isInitialized) {
-        console.warn('Notification service not initialized');
+        logger.warn('Notification service not initialized');
         return;
       }
 
@@ -205,7 +210,7 @@ class NotificationService {
         sound: notificationData.sound !== false,
       });
     } catch (error) {
-      console.error('Error showing local notification:', error);
+      logger.error('Error showing local notification:', error);
     }
   }
 
@@ -217,7 +222,7 @@ class NotificationService {
   ): Promise<string | null> {
     try {
       if (!this.isInitialized) {
-        console.warn('Notification service not initialized');
+        logger.warn('Notification service not initialized');
         return null;
       }
 
@@ -239,12 +244,12 @@ class NotificationService {
           data: notificationData.data || {},
           sound: notificationData.sound !== false,
         },
-        trigger: { seconds } as any,
+        trigger: { seconds } as Notifications.TimeIntervalTriggerInput,
       });
 
       return identifier;
     } catch (error) {
-      console.error('Error scheduling notification:', error);
+      logger.error('Error scheduling notification:', error);
       return null;
     }
   }
@@ -256,7 +261,7 @@ class NotificationService {
     try {
       await Notifications.cancelScheduledNotificationAsync(identifier);
     } catch (error) {
-      console.error('Error canceling scheduled notification:', error);
+      logger.error('Error canceling scheduled notification:', error);
     }
   }
 
@@ -267,7 +272,7 @@ class NotificationService {
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
     } catch (error) {
-      console.error('Error canceling all scheduled notifications:', error);
+      logger.error('Error canceling all scheduled notifications:', error);
     }
   }
 
@@ -280,7 +285,7 @@ class NotificationService {
     try {
       return await Notifications.getAllScheduledNotificationsAsync();
     } catch (error) {
-      console.error('Error getting scheduled notifications:', error);
+      logger.error('Error getting scheduled notifications:', error);
       return [];
     }
   }
@@ -296,12 +301,12 @@ class NotificationService {
    * Programar recordatorios de servicios
    */
   public async scheduleServiceReminders(
-    services: Array<{
+    services: {
       id: string;
       title: string;
       startTime: Date;
       userAddress?: string;
-    }>
+    }[]
   ): Promise<void> {
     try {
       // Cancelar recordatorios existentes
@@ -347,7 +352,7 @@ class NotificationService {
         }
       }
     } catch (error) {
-      console.error('Error scheduling service reminders:', error);
+      logger.error('Error scheduling service reminders:', error);
     }
   }
 
@@ -393,7 +398,7 @@ class NotificationService {
       const { status } = await Notifications.getPermissionsAsync();
       return status;
     } catch (error) {
-      console.error('Error checking permission status:', error);
+      logger.error('Error checking permission status:', error);
       return 'denied';
     }
   }
@@ -404,10 +409,10 @@ class NotificationService {
   public async openNotificationSettings(): Promise<void> {
     try {
       // Esta función podría no estar disponible en todas las versiones
-      console.log('Opening notification settings...');
+      logger.debug('Opening notification settings...');
       // await Notifications.openNotificationSettingsAsync();
     } catch (error) {
-      console.error('Error opening notification settings:', error);
+      logger.error('Error opening notification settings:', error);
     }
   }
 }

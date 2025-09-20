@@ -12,11 +12,16 @@ jobs:
   build:
     name: Build and Deploy
     runs-on: ubuntu-latest
-    
+
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+
     steps:
       - name: Check for EXPO_TOKEN
         run: |
-          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+          if [ -z "$EXPO_TOKEN" ]; then
             echo "You must provide an EXPO_TOKEN secret linked to this project's Expo account in this repo's secrets. Learn more: https://docs.expo.dev/eas-update/github-actions"
             exit 1
           fi
@@ -35,7 +40,7 @@ jobs:
         with:
           expo-version: latest
           eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          token: ${{ env.EXPO_TOKEN }}
 
       - name: Install dependencies
         run: npm ci
@@ -45,8 +50,8 @@ jobs:
           echo "EXPO_PUBLIC_ENV=production" > .env.production
           echo "EXPO_PUBLIC_API_URL=" >> .env.production
           echo "EXPO_PUBLIC_MOCK_API=false" >> .env.production
-          echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}" >> .env.production
-          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" >> .env.production
+          echo "EXPO_PUBLIC_SUPABASE_URL=$EXPO_PUBLIC_SUPABASE_URL" >> .env.production
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=$EXPO_PUBLIC_SUPABASE_ANON_KEY" >> .env.production
           echo "EXPO_PUBLIC_PUSH_NOTIFICATIONS_ENABLED=true" >> .env.production
           echo "EXPO_PUBLIC_LOCATION_TRACKING_ENABLED=true" >> .env.production
           echo "EXPO_PUBLIC_LOG_LEVEL=error" >> .env.production
@@ -57,7 +62,7 @@ jobs:
         if: github.event_name == 'release'
         run: |
           eas build --platform all --profile production-internal --non-interactive --no-wait
-          
+
       - name: Build preview (on main push)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |

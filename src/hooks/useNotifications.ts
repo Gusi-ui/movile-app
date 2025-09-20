@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import logger from '../utils/logger';
 
 import NotificationService, {
   NotificationData,
@@ -18,12 +19,12 @@ interface UseNotificationsReturn {
   requestPermissions: () => Promise<boolean>;
   openSettings: () => Promise<void>;
   scheduleServiceReminders: (
-    services: Array<{
+    services: {
       id: string;
       title: string;
       startTime: Date;
       userAddress?: string;
-    }>
+    }[]
   ) => Promise<void>;
   notifyAssignmentUpdate: (title: string, description: string) => Promise<void>;
   notifyNewMessage: (from: string, message: string) => Promise<void>;
@@ -51,13 +52,13 @@ export const useNotifications = (): UseNotificationsReturn => {
           setExpoPushToken(token);
         }
       } catch (error) {
-        console.error('Error initializing notifications:', error);
+        logger.error('Error initializing notifications:', error);
         setPermissionStatus('denied');
       }
     };
 
-    initializeNotifications().catch((error) => {
-      console.error('Failed to initialize notifications:', error);
+    initializeNotifications().catch(error => {
+      logger.error('Failed to initialize notifications:', error);
       setPermissionStatus('denied');
     });
   }, []);
@@ -107,7 +108,7 @@ export const useNotifications = (): UseNotificationsReturn => {
 
       return initialized && status === 'granted';
     } catch (error) {
-      console.error('Error requesting permissions:', error);
+      logger.error('Error requesting permissions:', error);
       return false;
     }
   }, []);
@@ -120,12 +121,12 @@ export const useNotifications = (): UseNotificationsReturn => {
   // Función para programar recordatorios de servicios
   const scheduleServiceReminders = useCallback(
     async (
-      services: Array<{
+      services: {
         id: string;
         title: string;
         startTime: Date;
         userAddress?: string;
-      }>
+      }[]
     ): Promise<void> => {
       await NotificationService.scheduleServiceReminders(services);
     },

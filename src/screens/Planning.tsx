@@ -4,12 +4,16 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ViewStyle,
+  TextStyle,
 } from 'react-native';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import logger from '../utils/logger';
+import { Colors } from '../constants/colors';
 
 interface Assignment {
   id: string;
@@ -19,6 +23,19 @@ interface Assignment {
   end_date: string | null;
   user_name: string;
   user_address: string;
+}
+
+interface AssignmentWithUser {
+  id: string;
+  assignment_type: string;
+  schedule: unknown;
+  start_date: string;
+  end_date: string | null;
+  users?: {
+    name?: string;
+    surname?: string;
+    address?: string;
+  };
 }
 
 interface Holiday {
@@ -120,12 +137,14 @@ export default function PlanningScreen(): React.JSX.Element {
         .or(`end_date.is.null,end_date.gte.${startDateString}`);
 
       if (assignmentError === null && assignmentData !== null) {
-        const processedAssignments = assignmentData.map((item: any) => ({
-          ...item,
-          user_name:
-            `${item.users?.name ?? ''} ${item.users?.surname ?? ''}`.trim(),
-          user_address: item.users?.address ?? '',
-        }));
+        const processedAssignments = assignmentData.map(
+          (item: AssignmentWithUser) => ({
+            ...item,
+            user_name:
+              `${item.users?.name ?? ''} ${item.users?.surname ?? ''}`.trim(),
+            user_address: item.users?.address ?? '',
+          })
+        );
         setAssignments(processedAssignments);
       }
 
@@ -139,7 +158,7 @@ export default function PlanningScreen(): React.JSX.Element {
         setHolidays(holidayData);
       }
     } catch (error) {
-      console.error('Error loading planning data:', error);
+      logger.error('Error loading planning data:', error);
     } finally {
       setLoading(false);
     }
@@ -155,7 +174,7 @@ export default function PlanningScreen(): React.JSX.Element {
       assignmentType: string,
       dayOfWeek: number,
       isHoliday: boolean
-    ): Array<{ start: string; end: string }> => {
+    ): { start: string; end: string }[] => {
       try {
         const sc =
           typeof schedule === 'string'
@@ -226,7 +245,7 @@ export default function PlanningScreen(): React.JSX.Element {
   );
 
   const calculateDayHours = useCallback(
-    (slots: Array<{ start: string; end: string }>): number => {
+    (slots: { start: string; end: string }[]): number => {
       return slots.reduce((total, slot) => {
         const [startH, startM] = slot.start.split(':').map(Number);
         const [endH, endM] = slot.end.split(':').map(Number);
@@ -256,7 +275,7 @@ export default function PlanningScreen(): React.JSX.Element {
       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
       const holiday = holidays.find(
-        (h) =>
+        h =>
           h.day === day &&
           h.month === selectedMonth + 1 &&
           h.year === selectedYear
@@ -264,7 +283,7 @@ export default function PlanningScreen(): React.JSX.Element {
       const isHoliday = !!holiday || isWeekend;
 
       // Filtrar asignaciones que aplican para este día
-      const dayAssignments = assignments.filter((assignment) => {
+      const dayAssignments = assignments.filter(assignment => {
         const startDate = new Date(assignment.start_date);
         const endDate = assignment.end_date
           ? new Date(assignment.end_date)
@@ -315,7 +334,7 @@ export default function PlanningScreen(): React.JSX.Element {
     calculateDayHours,
   ]);
 
-  const renderMonthSelector = () => (
+  const renderMonthSelector = (): React.ReactElement => (
     <View style={styles.selectorContainer}>
       <TouchableOpacity
         style={styles.selectorButton}
@@ -353,7 +372,7 @@ export default function PlanningScreen(): React.JSX.Element {
     </View>
   );
 
-  const renderCalendarHeader = () => (
+  const renderCalendarHeader = (): React.ReactElement => (
     <View style={styles.calendarHeader}>
       {dayNames.map((day, index) => (
         <View key={day} style={styles.dayHeaderCell}>
@@ -370,7 +389,7 @@ export default function PlanningScreen(): React.JSX.Element {
     </View>
   );
 
-  const renderDayCell = (dayInfo: DayInfo) => {
+  const renderDayCell = (dayInfo: DayInfo): React.ReactElement => {
     const {
       date,
       isToday,
@@ -381,8 +400,8 @@ export default function PlanningScreen(): React.JSX.Element {
       totalHours,
     } = dayInfo;
 
-    const cellStyles = [styles.dayCell] as any[];
-    const textStyles = [styles.dayNumber] as any[];
+    const cellStyles: ViewStyle[] = [styles.dayCell];
+    const textStyles: TextStyle[] = [styles.dayNumber];
 
     if (isToday) {
       cellStyles.push(styles.todayCell);
@@ -429,7 +448,7 @@ export default function PlanningScreen(): React.JSX.Element {
     );
   };
 
-  const renderCalendar = () => {
+  const renderCalendar = (): React.ReactElement => {
     const weeks: DayInfo[][] = [];
     let currentWeek: DayInfo[] = [];
 
@@ -442,7 +461,7 @@ export default function PlanningScreen(): React.JSX.Element {
     }
 
     // Añadir días del mes
-    monthDays.forEach((day) => {
+    monthDays.forEach(day => {
       if (currentWeek.length === 7) {
         weeks.push(currentWeek);
         currentWeek = [];
@@ -474,11 +493,9 @@ export default function PlanningScreen(): React.JSX.Element {
     );
   };
 
-  const renderMonthSummary = () => {
+  const renderMonthSummary = (): React.ReactElement => {
     const totalHours = monthDays.reduce((sum, day) => sum + day.totalHours, 0);
-    const workDays = monthDays.filter(
-      (day) => day.assignments.length > 0
-    ).length;
+    const workDays = monthDays.filter(day => day.assignments.length > 0).length;
     const totalAssignments = monthDays.reduce(
       (sum, day) => sum + day.assignments.length,
       0
@@ -530,33 +547,33 @@ export default function PlanningScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingText: {
     fontSize: 16,
     textAlign: 'center',
     marginTop: 50,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   selectorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: Colors.border,
   },
   selectorButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Colors.backgroundLight,
     borderRadius: 8,
   },
   selectorButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#475569',
+    color: Colors.textMuted,
   },
   currentMonthContainer: {
     flex: 1,
@@ -565,14 +582,14 @@ const styles = StyleSheet.create({
   currentMonthText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1e293b',
+    color: Colors.textPrimary,
   },
   calendar: {
     margin: 16,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -580,7 +597,7 @@ const styles = StyleSheet.create({
   },
   calendarHeader: {
     flexDirection: 'row',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Colors.backgroundLight,
   },
   dayHeaderCell: {
     flex: 1,
@@ -590,10 +607,10 @@ const styles = StyleSheet.create({
   dayHeaderText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#475569',
+    color: Colors.textMuted,
   },
   weekendHeaderText: {
-    color: '#ef4444',
+    color: Colors.error,
   },
   calendarWeek: {
     flexDirection: 'row',
@@ -603,7 +620,7 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     padding: 4,
     borderWidth: 0.5,
-    borderColor: '#e2e8f0',
+    borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'flex-start',
     position: 'relative',
@@ -612,37 +629,37 @@ const styles = StyleSheet.create({
     flex: 1,
     aspectRatio: 1,
     borderWidth: 0.5,
-    borderColor: '#e2e8f0',
+    borderColor: Colors.border,
   },
   todayCell: {
-    backgroundColor: '#dbeafe',
-    borderColor: '#3b82f6',
+    backgroundColor: Colors.infoLight,
+    borderColor: Colors.primary,
     borderWidth: 2,
   },
   holidayCell: {
-    backgroundColor: '#fef3c7',
+    backgroundColor: Colors.warningLight,
   },
   workDayCell: {
-    backgroundColor: '#f0fdf4',
+    backgroundColor: Colors.successLight,
   },
   dayNumber: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 2,
   },
   todayText: {
-    color: '#3b82f6',
+    color: Colors.primary,
     fontWeight: '700',
   },
   holidayText: {
-    color: '#d97706',
+    color: Colors.warning,
   },
   weekendText: {
-    color: '#ef4444',
+    color: Colors.error,
   },
   hoursIndicator: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
     paddingHorizontal: 4,
     paddingVertical: 1,
@@ -650,11 +667,11 @@ const styles = StyleSheet.create({
   },
   hoursText: {
     fontSize: 8,
-    color: 'white',
+    color: Colors.textLight,
     fontWeight: '600',
   },
   assignmentsIndicator: {
-    backgroundColor: '#22c55e',
+    backgroundColor: Colors.success,
     borderRadius: 6,
     width: 12,
     height: 12,
@@ -666,7 +683,7 @@ const styles = StyleSheet.create({
   },
   assignmentsCount: {
     fontSize: 8,
-    color: 'white',
+    color: Colors.textLight,
     fontWeight: '700',
   },
   holidayIndicator: {
@@ -684,7 +701,7 @@ const styles = StyleSheet.create({
   summaryTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 12,
   },
   summaryCards: {
@@ -692,13 +709,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
   },
   summaryCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 4,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -707,12 +724,12 @@ const styles = StyleSheet.create({
   summaryCardValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#3b82f6',
+    color: Colors.primary,
     marginBottom: 4,
   },
   summaryCardLabel: {
     fontSize: 12,
-    color: '#64748b',
+    color: Colors.textSecondary,
     textAlign: 'center',
   },
 });

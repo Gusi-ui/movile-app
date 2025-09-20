@@ -12,13 +12,14 @@ import {
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { shadowStyles } from '../utils/shadows';
+import { Colors } from '../constants/colors';
 
-export default function LoginScreen() {
+export default function LoginScreen(): React.ReactElement {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { login, state, clearAllCache } = useAuth();
 
-  const handleLogin = async () => {
+  const handleLogin = async (): Promise<void> => {
     if (!email.trim() || !password.trim()) {
       Alert.alert('Error', 'Por favor completa todos los campos');
       return;
@@ -26,7 +27,7 @@ export default function LoginScreen() {
 
     try {
       await login({ email: email.trim(), password });
-    } catch (error) {
+    } catch {
       Alert.alert('Error de autenticación', 'Credenciales incorrectas');
     }
   };
@@ -95,8 +96,12 @@ export default function LoginScreen() {
             style={[styles.clearCacheButton]}
             onPress={clearAllCache}
           >
-            <Text style={styles.clearCacheButtonText}>🧹 LIMPIAR CACHÉ COMPLETO</Text>
-            <Text style={styles.clearCacheSubtext}>Eliminar datos de María García</Text>
+            <Text style={styles.clearCacheButtonText}>
+              🧹 LIMPIAR CACHÉ COMPLETO
+            </Text>
+            <Text style={styles.clearCacheSubtext}>
+              Eliminar datos de María García
+            </Text>
           </TouchableOpacity>
         </View>
         <View style={styles.footer}>
@@ -112,7 +117,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -123,11 +128,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingText: {
     fontSize: 18,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   logoContainer: {
     alignItems: 'center',
@@ -136,15 +141,15 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#3b82f6',
+    color: Colors.primary,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   formContainer: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 24,
     ...shadowStyles.card,
@@ -152,7 +157,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 24,
     textAlign: 'center',
   },
@@ -162,41 +167,41 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.textGray,
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: Colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
   },
   errorContainer: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#fecaca',
+    backgroundColor: Colors.errorLight,
+    borderColor: Colors.error,
     borderWidth: 1,
     borderRadius: 8,
     padding: 12,
     marginBottom: 20,
   },
   errorText: {
-    color: '#dc2626',
+    color: Colors.error,
     fontSize: 14,
   },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
     marginTop: 8,
   },
   buttonDisabled: {
-    backgroundColor: '#9ca3af',
+    backgroundColor: Colors.textMuted,
   },
   buttonText: {
-    color: 'white',
+    color: Colors.textLight,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -205,12 +210,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   footerText: {
-    color: '#64748b',
+    color: Colors.textSecondary,
     fontSize: 14,
     textAlign: 'center',
   },
   clearCacheButton: {
-    backgroundColor: '#dc3545',
+    backgroundColor: Colors.error,
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 12,
@@ -220,12 +225,12 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   clearCacheButtonText: {
-    color: 'white',
+    color: Colors.textLight,
     fontSize: 14,
     fontWeight: '500',
   },
   clearCacheSubtext: {
-    color: 'white',
+    color: Colors.textLight,
     fontSize: 12,
     fontWeight: '400',
     opacity: 0.8,

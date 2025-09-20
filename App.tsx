@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from './src/contexts/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
 
-export default function App() {
+export default function App(): React.JSX.Element {
   return (
     <AuthProvider>
       <AppNavigator />

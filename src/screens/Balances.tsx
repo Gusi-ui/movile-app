@@ -11,6 +11,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import logger from '../utils/logger';
+import { Colors } from '../constants/colors';
 
 interface MonthlyBalance {
   id: string;
@@ -40,7 +42,12 @@ interface ServiceAssignment {
   status?: string;
 }
 
-
+interface Worker {
+  id: string;
+  email: string;
+  name: string;
+  surname: string;
+}
 
 export default function BalancesScreen(): React.JSX.Element {
   const { state } = useAuth();
@@ -87,13 +94,13 @@ export default function BalancesScreen(): React.JSX.Element {
         .single();
 
       if (workerError || !worker) {
-        console.error('Error finding worker:', workerError);
+        logger.error('Error finding worker:', workerError);
         setBalances([]);
         setAssignments([]);
         return;
       }
 
-      const workerId = (worker as any).id;
+      const workerId = (worker as Worker).id;
 
       // Cargar balances mensuales para el año seleccionado
       const { data: monthlyBalances, error: balancesError } = await supabase
@@ -104,7 +111,7 @@ export default function BalancesScreen(): React.JSX.Element {
         .order('month', { ascending: false });
 
       if (balancesError) {
-        console.error('Error loading balances:', balancesError);
+        logger.error('Error loading balances:', balancesError);
         setBalances([]);
       } else {
         setBalances((monthlyBalances as MonthlyBalance[]) || []);
@@ -114,9 +121,11 @@ export default function BalancesScreen(): React.JSX.Element {
       const startDate = new Date(selectedYear, selectedMonth - 1, 1);
       const endDate = new Date(selectedYear, selectedMonth, 0);
 
-      const { data: activeAssignments, error: assignmentsError } = await supabase
-        .from('assignments')
-        .select(`
+      const { data: activeAssignments, error: assignmentsError } =
+        await supabase
+          .from('assignments')
+          .select(
+            `
           id,
           client_name,
           service_type,
@@ -124,20 +133,23 @@ export default function BalancesScreen(): React.JSX.Element {
           start_date,
           end_date,
           hourly_rate
-        `)
-        .eq('worker_id', workerId)
-        .eq('status', 'active')
-        .lte('start_date', endDate.toISOString().split('T')[0])
-        .or(`end_date.is.null,end_date.gte.${startDate.toISOString().split('T')[0]}`);
+        `
+          )
+          .eq('worker_id', workerId)
+          .eq('status', 'active')
+          .lte('start_date', endDate.toISOString().split('T')[0])
+          .or(
+            `end_date.is.null,end_date.gte.${startDate.toISOString().split('T')[0]}`
+          );
 
       if (assignmentsError) {
-        console.error('Error loading assignments:', assignmentsError);
+        logger.error('Error loading assignments:', assignmentsError);
         setAssignments([]);
       } else {
         setAssignments((activeAssignments as ServiceAssignment[]) || []);
       }
     } catch (error) {
-      console.error('Error loading balances:', error);
+      logger.error('Error loading balances:', error);
     } finally {
       setLoading(false);
     }
@@ -149,7 +161,7 @@ export default function BalancesScreen(): React.JSX.Element {
 
   const currentMonthBalance = useMemo(() => {
     return balances.find(
-      (b) => b.year === selectedYear && b.month === selectedMonth
+      b => b.year === selectedYear && b.month === selectedMonth
     );
   }, [balances, selectedYear, selectedMonth]);
 
@@ -178,7 +190,7 @@ export default function BalancesScreen(): React.JSX.Element {
     }
   };
 
-  const renderMonthSelector = () => (
+  const renderMonthSelector = (): React.ReactElement => (
     <View style={styles.selectorContainer}>
       <TouchableOpacity
         style={styles.selectorButton}
@@ -216,7 +228,7 @@ export default function BalancesScreen(): React.JSX.Element {
     </View>
   );
 
-  const renderBalanceCard = () => {
+  const renderBalanceCard = (): React.ReactElement => {
     if (!currentMonthBalance) {
       return (
         <View style={styles.balanceCard}>
@@ -240,7 +252,7 @@ export default function BalancesScreen(): React.JSX.Element {
         <Text style={styles.balanceCardTitle}>
           {balanceIcon} Resumen de {monthNames[selectedMonth - 1]}
         </Text>
-        
+
         <View style={styles.balanceStatsContainer}>
           <View style={styles.balanceStat}>
             <Text style={styles.balanceStatValue}>
@@ -248,14 +260,14 @@ export default function BalancesScreen(): React.JSX.Element {
             </Text>
             <Text style={styles.balanceStatLabel}>Horas Trabajadas</Text>
           </View>
-          
+
           <View style={styles.balanceStat}>
             <Text style={styles.balanceStatValue}>
               {currentMonthBalance.services_completed}
             </Text>
             <Text style={styles.balanceStatLabel}>Servicios Completados</Text>
           </View>
-          
+
           <View style={styles.balanceStat}>
             <Text style={styles.balanceStatValue}>
               {currentMonthBalance.clients_served}
@@ -264,7 +276,9 @@ export default function BalancesScreen(): React.JSX.Element {
           </View>
         </View>
 
-        <View style={[styles.finalBalanceContainer, { borderColor: balanceColor }]}>
+        <View
+          style={[styles.finalBalanceContainer, { borderColor: balanceColor }]}
+        >
           <Text style={[styles.finalBalanceLabel, { color: balanceColor }]}>
             Ingresos del Mes
           </Text>
@@ -272,20 +286,19 @@ export default function BalancesScreen(): React.JSX.Element {
             €{currentMonthBalance.earnings.toFixed(2)}
           </Text>
           <Text style={styles.finalBalanceDescription}>
-            Balance de horas: {currentMonthBalance.balance > 0 ? '+' : ''}{currentMonthBalance.balance}h
+            Balance de horas: {currentMonthBalance.balance > 0 ? '+' : ''}
+            {currentMonthBalance.balance}h
           </Text>
         </View>
       </View>
     );
   };
 
-  const renderAssignments = () => {
+  const renderAssignments = (): React.ReactElement => {
     if (assignments.length === 0) {
       return (
         <View style={styles.assignmentsContainer}>
-          <Text style={styles.assignmentsTitle}>
-            👥 Asignaciones Activas
-          </Text>
+          <Text style={styles.assignmentsTitle}>👥 Asignaciones Activas</Text>
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>
               No hay asignaciones activas para este mes
@@ -300,11 +313,12 @@ export default function BalancesScreen(): React.JSX.Element {
         <Text style={styles.assignmentsTitle}>
           👥 Asignaciones Activas ({assignments.length})
         </Text>
-        {assignments.map((assignment) => (
+        {assignments.map(assignment => (
           <View key={assignment.id} style={styles.assignmentCard}>
             <View style={styles.assignmentHeader}>
               <Text style={styles.assignmentType}>
-                {getServiceIcon(assignment.service_type)} {assignment.service_type}
+                {getServiceIcon(assignment.service_type)}{' '}
+                {assignment.service_type}
               </Text>
               <Text style={styles.assignmentHours}>
                 {assignment.weekly_hours}h/semana
@@ -317,7 +331,8 @@ export default function BalancesScreen(): React.JSX.Element {
               Tarifa: €{assignment.hourly_rate}/hora
             </Text>
             <Text style={styles.assignmentPeriod}>
-              Desde: {new Date(assignment.start_date).toLocaleDateString('es-ES')}
+              Desde:{' '}
+              {new Date(assignment.start_date).toLocaleDateString('es-ES')}
             </Text>
           </View>
         ))}
@@ -325,9 +340,9 @@ export default function BalancesScreen(): React.JSX.Element {
     );
   };
 
-  const renderHistory = () => {
+  const renderHistory = (): React.ReactElement | null => {
     const historyBalances = balances.filter(
-      (b) => !(b.year === selectedYear && b.month === selectedMonth)
+      b => !(b.year === selectedYear && b.month === selectedMonth)
     );
 
     if (historyBalances.length === 0) {
@@ -337,7 +352,7 @@ export default function BalancesScreen(): React.JSX.Element {
     return (
       <View style={styles.historyContainer}>
         <Text style={styles.historyTitle}>📈 Historial de Meses</Text>
-        {historyBalances.map((balance) => (
+        {historyBalances.map(balance => (
           <TouchableOpacity
             key={balance.id}
             style={styles.historyCard}
@@ -379,7 +394,10 @@ export default function BalancesScreen(): React.JSX.Element {
   if (loading) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={Colors.background}
+        />
         <Text style={styles.loadingText}>Cargando información...</Text>
       </View>
     );
@@ -387,7 +405,7 @@ export default function BalancesScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
       <ScrollView>
         {renderMonthSelector()}
         {renderBalanceCard()}
@@ -401,33 +419,33 @@ export default function BalancesScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingText: {
     fontSize: 16,
     textAlign: 'center',
     marginTop: 50,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   selectorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: Colors.border,
   },
   selectorButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Colors.backgroundLight,
     borderRadius: 8,
   },
   selectorButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#475569',
+    color: Colors.neutral600,
   },
   currentMonthContainer: {
     flex: 1,
@@ -436,14 +454,14 @@ const styles = StyleSheet.create({
   currentMonthText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1e293b',
+    color: Colors.textPrimary,
   },
   balanceCard: {
     margin: 16,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -452,7 +470,7 @@ const styles = StyleSheet.create({
   balanceCardTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -467,12 +485,12 @@ const styles = StyleSheet.create({
   balanceStatValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#3b82f6',
+    color: Colors.primaryLight,
     marginBottom: 4,
   },
   balanceStatLabel: {
     fontSize: 12,
-    color: '#64748b',
+    color: Colors.textSecondary,
     textAlign: 'center',
   },
   finalBalanceContainer: {
@@ -493,7 +511,7 @@ const styles = StyleSheet.create({
   },
   finalBalanceDescription: {
     fontSize: 12,
-    color: '#64748b',
+    color: Colors.textSecondary,
     textAlign: 'center',
   },
   assignmentsContainer: {
@@ -503,15 +521,15 @@ const styles = StyleSheet.create({
   assignmentsTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 12,
   },
   assignmentCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 16,
     marginBottom: 8,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -526,21 +544,21 @@ const styles = StyleSheet.create({
   assignmentType: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#3b82f6',
+    color: Colors.primaryLight,
   },
   assignmentHours: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#f97316',
+    color: Colors.warning,
   },
   assignmentUser: {
     fontSize: 14,
-    color: '#374151',
+    color: Colors.textGray,
     marginBottom: 4,
   },
   assignmentPeriod: {
     fontSize: 12,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   historyContainer: {
     margin: 16,
@@ -549,15 +567,15 @@ const styles = StyleSheet.create({
   historyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 12,
   },
   historyCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 16,
     marginBottom: 8,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -572,7 +590,7 @@ const styles = StyleSheet.create({
   historyCardMonth: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1e293b',
+    color: Colors.textPrimary,
   },
   historyCardBalance: {
     fontSize: 16,
@@ -584,17 +602,17 @@ const styles = StyleSheet.create({
   },
   historyCardStat: {
     fontSize: 12,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   emptyState: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 24,
     alignItems: 'center',
   },
   emptyStateText: {
     fontSize: 14,
-    color: '#64748b',
+    color: Colors.textSecondary,
     textAlign: 'center',
     fontStyle: 'italic',
   },

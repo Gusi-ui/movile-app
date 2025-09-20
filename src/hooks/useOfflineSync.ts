@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import logger from '../utils/logger';
 
 import OfflineService, {
   OfflineData,
@@ -44,7 +45,7 @@ export const useOfflineSync = (): UseOfflineSyncReturn => {
     // Configurar intervalo
     const interval = setInterval(updateStats, 5000);
 
-    return () => clearInterval(interval);
+    return (): void => clearInterval(interval);
   }, []);
 
   // Función para guardar datos offline
@@ -75,7 +76,7 @@ export const useOfflineSync = (): UseOfflineSyncReturn => {
     try {
       return await OfflineService.forcSync();
     } catch (error) {
-      console.error('Error during manual sync:', error);
+      logger.error('Error during manual sync:', error);
       throw error;
     }
   }, []);
@@ -87,7 +88,12 @@ export const useOfflineSync = (): UseOfflineSyncReturn => {
   }, []);
 
   // Función para obtener estadísticas
-  const getSyncStats = useCallback(() => {
+  const getSyncStats = useCallback((): {
+    isOnline: boolean;
+    pendingActions: number;
+    syncInProgress: boolean;
+    lastSync: string | null;
+  } => {
     return OfflineService.getSyncStats();
   }, []);
 

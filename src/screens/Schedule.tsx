@@ -7,10 +7,12 @@ import {
   View,
 } from 'react-native';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import logger from '../utils/logger';
+import { Colors } from '../constants/colors';
 
 interface Assignment {
   id: string;
@@ -25,16 +27,39 @@ interface Assignment {
   weekly_hours: number | null;
 }
 
+interface AssignmentWithUser {
+  id: string;
+  assignment_type: string;
+  schedule: unknown;
+  start_date: string;
+  end_date: string | null;
+  users:
+    | {
+        name: string | null;
+        surname: string | null;
+      }
+    | {
+        name: string | null;
+        surname: string | null;
+      }[];
+  weekly_hours: number | null;
+}
+
+interface TimeSlot {
+  start: string;
+  end: string;
+}
+
 interface DaySchedule {
   day: string;
   dayName: string;
   date: string;
-  slots: Array<{
+  slots: {
     start: string;
     end: string;
     userName: string;
     assignmentType: string;
-  }>;
+  }[];
 }
 
 export default function ScheduleScreen(): React.JSX.Element {
@@ -46,24 +71,92 @@ export default function ScheduleScreen(): React.JSX.Element {
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(new Date());
   const [totalWeeklyHours, setTotalWeeklyHours] = useState<number>(0);
 
-  useEffect(() => {
-    loadSchedule();
-  }, [currentWorker, currentWeekStart]);
-
   const getWeekDates = (startDate: Date): Date[] => {
     const dates: Date[] = [];
-    const start = new Date(startDate);
-    start.setDate(start.getDate() - start.getDay() + 1); // Lunes
-
     for (let i = 0; i < 7; i++) {
-      const date = new Date(start);
-      date.setDate(start.getDate() + i);
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
       dates.push(date);
     }
     return dates;
   };
 
-  const loadSchedule = async (): Promise<void> => {
+  const generateWeekSchedule = useCallback(
+    (assignmentsData: Assignment[]): void => {
+      const weekDates = getWeekDates(currentWeekStart);
+      const dayNames = [
+        'lunes',
+        'martes',
+        'miércoles',
+        'jueves',
+        'viernes',
+        'sábado',
+        'domingo',
+      ];
+
+      const schedule: DaySchedule[] = weekDates
+        .filter(
+          (date): date is Date => date instanceof Date && !isNaN(date.getTime())
+        )
+        .map((date, index) => {
+          const daySlots: {
+            start: string;
+            end: string;
+            userName: string;
+            assignmentType: string;
+          }[] = [];
+
+          assignmentsData.forEach(assignment => {
+            if (
+              assignment.schedule &&
+              typeof assignment.schedule === 'object'
+            ) {
+              const scheduleData = assignment.schedule as Record<
+                string,
+                TimeSlot[]
+              >;
+              const dayKey = dayNames[index];
+              const daySchedule = dayKey ? scheduleData[dayKey] : undefined;
+
+              if (daySchedule && Array.isArray(daySchedule)) {
+                daySchedule.forEach(slot => {
+                  daySlots.push({
+                    start: slot.start,
+                    end: slot.end,
+                    userName:
+                      `${assignment.users?.name || ''} ${assignment.users?.surname || ''}`.trim(),
+                    assignmentType: assignment.assignment_type,
+                  });
+                });
+              }
+            }
+          });
+
+          // Ordenar slots por hora de inicio
+          daySlots.sort((a, b) => {
+            const timeA = a.start.split(':').map(Number);
+            const timeB = b.start.split(':').map(Number);
+            return (
+              (timeA[0] || 0) * 60 +
+              (timeA[1] || 0) -
+              ((timeB[0] || 0) * 60 + (timeB[1] || 0))
+            );
+          });
+
+          return {
+            day: date.getDate().toString().padStart(2, '0'),
+            dayName: dayNames[index] || 'día',
+            date: date.toISOString().split('T')[0] as string,
+            slots: daySlots,
+          };
+        });
+
+      setWeekSchedule(schedule);
+    },
+    [currentWeekStart]
+  );
+
+  const loadSchedule = useCallback(async (): Promise<void> => {
     if (!currentWorker?.email) {
       setLoading(false);
       return;
@@ -103,10 +196,12 @@ export default function ScheduleScreen(): React.JSX.Element {
 
       if (assignmentsData) {
         // Transformar datos para que coincidan con la interfaz
-        const transformedData = assignmentsData.map((row: any) => ({
-          ...row,
-          users: Array.isArray(row.users) ? row.users[0] : row.users,
-        })) as Assignment[];
+        const transformedData = assignmentsData.map(
+          (row: AssignmentWithUser) => ({
+            ...row,
+            users: Array.isArray(row.users) ? row.users[0] : row.users,
+          })
+        ) as Assignment[];
 
         setAssignments(transformedData);
 
@@ -120,91 +215,16 @@ export default function ScheduleScreen(): React.JSX.Element {
         generateWeekSchedule(transformedData);
       }
     } catch (error) {
-      console.error('Error loading schedule:', error);
+      logger.error('Error loading schedule:', error);
       Alert.alert('Error', 'No se pudo cargar el horario');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentWorker?.email, generateWeekSchedule]);
 
-  const generateWeekSchedule = (assignmentsData: Assignment[]): void => {
-    const weekDates = getWeekDates(currentWeekStart);
-    const dayNames = [
-      'lunes',
-      'martes',
-      'miércoles',
-      'jueves',
-      'viernes',
-      'sábado',
-      'domingo',
-    ];
-    const scheduleKeys = [
-      'monday',
-      'tuesday',
-      'wednesday',
-      'thursday',
-      'friday',
-      'saturday',
-      'sunday',
-    ];
-
-    const weekSchedule: DaySchedule[] = weekDates.map((date, index) => {
-      const daySlots: Array<{
-        start: string;
-        end: string;
-        userName: string;
-        assignmentType: string;
-      }> = [];
-
-      assignmentsData.forEach((assignment) => {
-        try {
-          const schedule =
-            typeof assignment.schedule === 'string'
-              ? JSON.parse(assignment.schedule)
-              : assignment.schedule;
-
-          const dayConfig =
-            schedule?.[scheduleKeys[index] as keyof typeof schedule];
-          const timeSlots = dayConfig?.timeSlots || [];
-          const enabled = dayConfig?.enabled !== false;
-
-          if (enabled && timeSlots.length > 0) {
-            const userName =
-              `${assignment.users.name || ''} ${assignment.users.surname || ''}`.trim() ||
-              'Servicio';
-
-            timeSlots.forEach((slot: any) => {
-              if (slot.start && slot.end) {
-                daySlots.push({
-                  start: slot.start,
-                  end: slot.end,
-                  userName,
-                  assignmentType: assignment.assignment_type,
-                });
-              }
-            });
-          }
-        } catch (error) {
-          console.error('Error parsing schedule:', error);
-        }
-      });
-
-      // Ordenar slots por hora de inicio
-      daySlots.sort((a, b) => a.start.localeCompare(b.start));
-
-      return {
-        day: scheduleKeys[index] || '',
-        dayName: dayNames[index] || '',
-        date: date.toLocaleDateString('es-ES', {
-          day: 'numeric',
-          month: 'short',
-        }),
-        slots: daySlots,
-      };
-    });
-
-    setWeekSchedule(weekSchedule);
-  };
+  useEffect(() => {
+    loadSchedule();
+  }, [loadSchedule]);
 
   const navigateWeek = (direction: 'prev' | 'next'): void => {
     const newDate = new Date(currentWeekStart);
@@ -321,7 +341,7 @@ export default function ScheduleScreen(): React.JSX.Element {
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Días Activos</Text>
             <Text style={styles.summaryValue}>
-              {weekSchedule.filter((day) => day.slots.length > 0).length}
+              {weekSchedule.filter(day => day.slots.length > 0).length}
             </Text>
           </View>
         </View>
@@ -416,19 +436,19 @@ export default function ScheduleScreen(): React.JSX.Element {
         <View style={styles.legendItems}>
           <View style={styles.legendItem}>
             <View
-              style={[styles.legendColor, { backgroundColor: '#3b82f6' }]}
+              style={[styles.legendColor, { backgroundColor: Colors.primary }]}
             />
             <Text style={styles.legendText}>Laborables</Text>
           </View>
           <View style={styles.legendItem}>
             <View
-              style={[styles.legendColor, { backgroundColor: '#ef4444' }]}
+              style={[styles.legendColor, { backgroundColor: Colors.error }]}
             />
             <Text style={styles.legendText}>Festivos</Text>
           </View>
           <View style={styles.legendItem}>
             <View
-              style={[styles.legendColor, { backgroundColor: '#22c55e' }]}
+              style={[styles.legendColor, { backgroundColor: Colors.success }]}
             />
             <Text style={styles.legendText}>Flexible</Text>
           </View>
@@ -444,49 +464,49 @@ export default function ScheduleScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.textMuted,
   },
   header: {
     padding: 20,
     paddingTop: 50,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: Colors.textDark,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.textMuted,
   },
   weekNavigation: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: Colors.borderLight,
   },
   navButton: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.backgroundLight,
   },
   navButtonText: {
-    color: '#374151',
+    color: Colors.textGray,
     fontWeight: '500',
   },
   currentWeekButton: {
@@ -495,14 +515,14 @@ const styles = StyleSheet.create({
   currentWeekText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: Colors.textDark,
   },
   summaryCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     margin: 16,
     padding: 20,
     borderRadius: 16,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -517,22 +537,22 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 12,
-    color: '#6b7280',
+    color: Colors.textMuted,
     marginBottom: 4,
   },
   summaryValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: Colors.textDark,
   },
   scheduleContainer: {
     paddingHorizontal: 16,
   },
   dayCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     marginBottom: 12,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -541,38 +561,38 @@ const styles = StyleSheet.create({
   },
   todayCard: {
     borderWidth: 2,
-    borderColor: '#3b82f6',
+    borderColor: Colors.primary,
   },
   dayHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: '#f9fafb',
+    backgroundColor: Colors.backgroundLight,
   },
   dayName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: Colors.textDark,
   },
   dayDate: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.textMuted,
   },
   dayHours: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#3b82f6',
+    color: Colors.primary,
   },
   todayText: {
-    color: '#3b82f6',
+    color: Colors.primary,
   },
   noSlotsContainer: {
     padding: 20,
     alignItems: 'center',
   },
   noSlotsText: {
-    color: '#9ca3af',
+    color: Colors.textTertiary,
     fontStyle: 'italic',
   },
   slotsContainer: {
@@ -580,7 +600,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   slotCard: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: Colors.backgroundLight,
     padding: 12,
     borderRadius: 8,
     borderLeftWidth: 4,
@@ -594,7 +614,7 @@ const styles = StyleSheet.create({
   slotTime: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
+    color: Colors.textDark,
   },
   typeLabel: {
     paddingHorizontal: 8,
@@ -607,14 +627,14 @@ const styles = StyleSheet.create({
   },
   slotUser: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.textMuted,
   },
   legendCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     margin: 16,
     padding: 16,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -623,7 +643,7 @@ const styles = StyleSheet.create({
   legendTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: Colors.textDark,
     marginBottom: 12,
   },
   legendItems: {
@@ -642,7 +662,7 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 12,
-    color: '#6b7280',
+    color: Colors.textMuted,
   },
   bottomSpacing: {
     height: 100,

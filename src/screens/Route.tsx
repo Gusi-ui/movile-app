@@ -5,14 +5,17 @@ import {
   Text,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from 'react-native';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 import { useAuth } from '../contexts/AuthContext';
-import { getRoutes } from '../lib/api';
-import { Route } from '../types/database';
+// Reemplazar API mock por consulta real a Supabase
+import { getWorkerAssignments } from '../lib/supabase';
+// import { Route } from '../types/database'; // ya no se usa
+import logger from '../utils/logger';
+import { Colors } from '../constants/colors';
+import { Database } from '../types/supabase';
 
 interface RouteStop {
   id: string;
@@ -23,6 +26,31 @@ interface RouteStop {
   order: number;
 }
 
+// Tipos supabase
+type SupabaseAssignment = Database['public']['Tables']['assignments']['Row'];
+
+// Mapea estado de supabase a estado de parada de ruta
+const mapRouteStatus = (status: string): RouteStop['status'] => {
+  switch (status) {
+    case 'in_progress':
+      return 'inprogress';
+    case 'completed':
+      return 'completed';
+    default:
+      return 'pending';
+  }
+};
+
+// Construye un intervalo horario simple a partir de start_date (1h)
+const buildTimeSlot = (start: string | null | undefined): string => {
+  if (!start) return 'Sin horario';
+  const startDate = new Date(start);
+  const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+  const fmt = (d: Date) =>
+    d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  return `${fmt(startDate)} - ${fmt(endDate)}`;
+};
+
 export default function RouteScreen(): React.JSX.Element {
   const { state } = useAuth();
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
@@ -30,11 +58,7 @@ export default function RouteScreen(): React.JSX.Element {
   const [totalDistance, setTotalDistance] = useState<string>('0 km');
   const [estimatedTime, setEstimatedTime] = useState<string>('0 min');
 
-  useEffect(() => {
-    loadTodayRoute();
-  }, [state.isAuthenticated]);
-
-  const loadTodayRoute = async (): Promise<void> => {
+  const loadTodayRoute = useCallback(async (): Promise<void> => {
     if (!state.isAuthenticated) {
       setLoading(false);
       return;
@@ -43,42 +67,56 @@ export default function RouteScreen(): React.JSX.Element {
     try {
       setLoading(true);
 
-      // Usar la API mock para obtener rutas
-      const response = await getRoutes({
-        status: ['active']
+      // Filtrar asignaciones del día de hoy (por start_date)
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const { data, error } = await getWorkerAssignments({
+        status: ['pending', 'assigned', 'in_progress'],
+        date_from: startOfDay.toISOString(),
+        date_to: endOfDay.toISOString(),
       });
 
-      if (response.data && response.data.data && response.data.data.length > 0) {
-        // Convertir rutas a paradas de ruta
-        const stops: RouteStop[] = response.data.data.map((route: Route, index: number) => ({
-          id: route.id,
-          userName: `Usuario ${index + 1}`,
-          address: route.description || 'Dirección no disponible',
-          timeSlot: `${8 + index}:00 - ${9 + index}:00`,
-          status: 'pending' as const,
-          order: index + 1,
-        }));
-
-        setRouteStops(stops);
-
-        // Simular cálculo de distancia y tiempo
-        setTotalDistance(`${(stops.length * 2.5).toFixed(1)} km`);
-        setEstimatedTime(`${stops.length * 15} min`);
+      if (error) {
+        throw error;
       }
+
+      const stops: RouteStop[] = (data || []).map(
+        (a: SupabaseAssignment, index: number) => ({
+          id: a.id,
+          userName: a.assignment_type || `Servicio ${index + 1}`,
+          address: '', // No tenemos dirección en la tabla; pendiente de enriquecer
+          timeSlot: buildTimeSlot(a.start_date),
+          status: mapRouteStatus(a.status),
+          order: index + 1,
+        })
+      );
+
+      setRouteStops(stops);
+
+      // Simular cálculo de distancia y tiempo
+      setTotalDistance(`${(stops.length * 2.5).toFixed(1)} km`);
+      setEstimatedTime(`${stops.length * 15} min`);
     } catch (error) {
-      console.error('Error loading route:', error);
+      logger.error('Error loading route:', error);
       Alert.alert('Error', 'No se pudo cargar la ruta del día');
     } finally {
       setLoading(false);
     }
-  };
+  }, [state.isAuthenticated]);
+
+  useEffect(() => {
+    loadTodayRoute();
+  }, [loadTodayRoute]);
 
   const updateStopStatus = (
     stopId: string,
     newStatus: RouteStop['status']
   ): void => {
-    setRouteStops((prev) =>
-      prev.map((stop) =>
+    setRouteStops(prev =>
+      prev.map(stop =>
         stop.id === stopId ? { ...stop, status: newStatus } : stop
       )
     );
@@ -241,39 +279,39 @@ export default function RouteScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.textMuted,
   },
   header: {
     padding: 20,
     paddingTop: 50,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: Colors.textDark,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.textMuted,
   },
   summaryCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     margin: 16,
     padding: 20,
     borderRadius: 16,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -289,31 +327,31 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 12,
-    color: '#6b7280',
+    color: Colors.textMuted,
     marginBottom: 4,
   },
   summaryValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: Colors.textDark,
   },
   optimizeButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: Colors.primary,
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   optimizeButtonText: {
-    color: 'white',
+    color: Colors.backgroundCard,
     fontWeight: '600',
   },
   noRoutesCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     margin: 16,
     padding: 40,
     borderRadius: 16,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -321,19 +359,19 @@ const styles = StyleSheet.create({
   },
   noRoutesText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.textMuted,
     textAlign: 'center',
   },
   stopsContainer: {
     paddingHorizontal: 16,
   },
   stopCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     marginBottom: 16,
     padding: 16,
     borderRadius: 12,
     flexDirection: 'row',
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -346,33 +384,33 @@ const styles = StyleSheet.create({
     top: 56,
     width: 2,
     height: 40,
-    backgroundColor: '#d1d5db',
+    backgroundColor: Colors.border,
     zIndex: 1,
   },
   stopNumber: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.backgroundLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
     borderWidth: 2,
-    borderColor: '#d1d5db',
+    borderColor: Colors.border,
     zIndex: 2,
   },
   completedNumber: {
-    backgroundColor: '#22c55e',
-    borderColor: '#22c55e',
+    backgroundColor: Colors.success,
+    borderColor: Colors.success,
   },
   inProgressNumber: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   stopNumberText: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#374151',
+    color: Colors.textGray,
   },
   stopInfo: {
     flex: 1,
@@ -380,12 +418,12 @@ const styles = StyleSheet.create({
   stopUserName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: Colors.textDark,
     marginBottom: 4,
   },
   stopTime: {
     fontSize: 14,
-    color: '#3b82f6',
+    color: Colors.primary,
     fontWeight: '500',
     marginBottom: 8,
   },
@@ -394,12 +432,12 @@ const styles = StyleSheet.create({
   },
   stopAddress: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.textMuted,
     marginBottom: 4,
   },
   navigateText: {
     fontSize: 12,
-    color: '#3b82f6',
+    color: Colors.primary,
     fontWeight: '500',
   },
   statusBadge: {
@@ -410,18 +448,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   pendingBadge: {
-    backgroundColor: '#fef3c7',
+    backgroundColor: Colors.warningLight,
   },
   inProgressBadge: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: Colors.infoLight,
   },
   completedBadge: {
-    backgroundColor: '#d1fae5',
+    backgroundColor: Colors.successLight,
   },
   statusText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#374151',
+    color: Colors.textGray,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -429,25 +467,25 @@ const styles = StyleSheet.create({
   },
   startButton: {
     flex: 1,
-    backgroundColor: '#22c55e',
+    backgroundColor: Colors.success,
     padding: 10,
     borderRadius: 8,
     alignItems: 'center',
   },
   startButtonText: {
-    color: 'white',
+    color: Colors.backgroundCard,
     fontWeight: '600',
     fontSize: 14,
   },
   completeButton: {
     flex: 1,
-    backgroundColor: '#3b82f6',
+    backgroundColor: Colors.primary,
     padding: 10,
     borderRadius: 8,
     alignItems: 'center',
   },
   completeButtonText: {
-    color: 'white',
+    color: Colors.backgroundCard,
     fontWeight: '600',
     fontSize: 14,
   },

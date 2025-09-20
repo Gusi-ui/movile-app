@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { RootStackParamList } from '../types';
 import { supabase } from '../lib/supabase';
 import { shadowStyles } from '../utils/shadows';
+import logger from '../utils/logger';
+import { Colors } from '../constants/colors';
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
 
@@ -49,7 +51,7 @@ interface Worker {
   id: string;
 }
 
-export default function HomeScreen() {
+export default function HomeScreen(): React.ReactElement {
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const { state, logout } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -62,14 +64,17 @@ export default function HomeScreen() {
   });
   const [todayServices, setTodayServices] = useState<TodayService[]>([]);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async (): Promise<void> => {
     try {
       if (!state.currentWorker?.email) {
-        console.log('No current worker email available');
+        logger.debug('No current worker email available');
         return;
       }
 
-      console.log('Searching for worker with email:', state.currentWorker.email);
+      logger.debug(
+        'Searching for worker with email:',
+        state.currentWorker.email
+      );
 
       // Buscar el trabajador por email
       const { data: worker, error: workerError } = await supabase
@@ -79,25 +84,25 @@ export default function HomeScreen() {
         .single();
 
       if (workerError) {
-        console.error('Error fetching worker:', workerError);
-        console.log('Worker search details:', {
+        logger.error('Error fetching worker:', workerError);
+        logger.debug('Worker search details:', {
           email: state.currentWorker.email,
-          error: workerError
+          error: workerError,
         });
-        
+
         // Intentar buscar sin el filtro single() para ver si hay múltiples o ningún resultado
         const { data: allWorkers, error: searchError } = await supabase
           .from('workers')
           .select('id, email, is_active')
           .eq('email', state.currentWorker.email);
-          
-        console.log('All workers with this email:', allWorkers);
-        console.log('Search error:', searchError);
+
+        logger.debug('All workers with this email:', allWorkers);
+        logger.debug('Search error:', searchError);
         return;
       }
 
       if (!worker) {
-        console.log('No worker found with email:', state.currentWorker.email);
+        logger.debug('No worker found with email:', state.currentWorker.email);
         return;
       }
 
@@ -108,7 +113,8 @@ export default function HomeScreen() {
       // Obtener asignaciones de hoy
       const { data: assignments, error } = await supabase
         .from('assignments')
-        .select(`
+        .select(
+          `
           id,
           start_time,
           end_time,
@@ -117,25 +123,31 @@ export default function HomeScreen() {
             name,
             address
           )
-        `)
+        `
+        )
         .eq('worker_id', typedWorker.id)
         .gte('start_time', `${today}T00:00:00`)
         .lt('start_time', `${today}T23:59:59`)
         .order('start_time');
 
       if (error) {
-        console.error('Error fetching assignments:', error);
+        logger.error('Error fetching assignments:', error);
         return;
       }
 
       if (assignments && assignments.length > 0) {
         // Castear los datos para TypeScript
-        const assignmentsData: AssignmentData[] = assignments as AssignmentData[];
-        
+        const assignmentsData: AssignmentData[] =
+          assignments as AssignmentData[];
+
         // Calcular estadísticas
-        const completed = assignmentsData.filter(a => a.status === 'completed').length;
-        const pending = assignmentsData.filter(a => a.status === 'pending').length;
-        
+        const completed = assignmentsData.filter(
+          a => a.status === 'completed'
+        ).length;
+        const pending = assignmentsData.filter(
+          a => a.status === 'pending'
+        ).length;
+
         // Calcular horas totales
         const totalMinutes = assignmentsData.reduce((total, assignment) => {
           const start = new Date(assignment.start_time);
@@ -146,65 +158,78 @@ export default function HomeScreen() {
         setDashboardStats({
           todayServices: assignmentsData.length,
           completedServices: completed,
-          totalHours: Math.round(totalMinutes / 60 * 10) / 10,
+          totalHours: Math.round((totalMinutes / 60) * 10) / 10,
           pendingServices: pending,
         });
 
         // Formatear servicios de hoy
-        const formattedServices: TodayService[] = assignmentsData.map(assignment => ({
-          id: assignment.id,
-          client_name: assignment.clients?.name || 'Cliente',
-          start_time: assignment.start_time,
-          end_time: assignment.end_time,
-          address: assignment.clients?.address || 'Dirección no disponible',
-          status: assignment.status as 'pending' | 'in_progress' | 'completed',
-        }));
+        const formattedServices: TodayService[] = assignmentsData.map(
+          assignment => ({
+            id: assignment.id,
+            client_name: assignment.clients?.name || 'Cliente',
+            start_time: assignment.start_time,
+            end_time: assignment.end_time,
+            address: assignment.clients?.address || 'Dirección no disponible',
+            status: assignment.status as
+              | 'pending'
+              | 'in_progress'
+              | 'completed',
+          })
+        );
 
         setTodayServices(formattedServices);
       }
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      logger.error('Error loading dashboard data:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [state.currentWorker?.email]);
 
-  const onRefresh = () => {
+  const onRefresh = (): void => {
     setRefreshing(true);
     loadDashboardData();
   };
 
   useEffect(() => {
     loadDashboardData();
-  }, [state.currentWorker?.email]);
+  }, [loadDashboardData]);
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): string => {
     switch (status) {
-      case 'completed': return '#10b981';
-      case 'in_progress': return '#f59e0b';
-      case 'pending': return '#6b7280';
-      default: return '#6b7280';
+      case 'completed':
+        return '#10b981';
+      case 'in_progress':
+        return '#f59e0b';
+      case 'pending':
+        return '#6b7280';
+      default:
+        return '#6b7280';
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: string): string => {
     switch (status) {
-      case 'completed': return 'Completado';
-      case 'in_progress': return 'En progreso';
-      case 'pending': return 'Pendiente';
-      default: return 'Desconocido';
+      case 'completed':
+        return 'Completado';
+      case 'in_progress':
+        return 'En progreso';
+      case 'pending':
+        return 'Pendiente';
+      default:
+        return 'Desconocido';
     }
   };
 
-  const formatTime = (timeString: string) => {
+  const formatTime = (timeString: string): string => {
     return new Date(timeString).toLocaleTimeString('es-ES', {
       hour: '2-digit',
       minute: '2-digit',
     });
   };
 
-  const handleLogout = () => {
+  const handleLogout = (): void => {
     Alert.alert(
       'Cerrar Sesión',
       '¿Estás seguro de que quieres cerrar sesión?',
@@ -218,7 +243,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#2563eb" />
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -237,7 +262,7 @@ export default function HomeScreen() {
                 weekday: 'long',
                 year: 'numeric',
                 month: 'long',
-                day: 'numeric'
+                day: 'numeric',
               })}
             </Text>
             <View style={styles.statusBadge}>
@@ -248,11 +273,15 @@ export default function HomeScreen() {
 
         <View style={styles.quickStatsContainer}>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{dashboardStats.todayServices}</Text>
+            <Text style={styles.statNumber}>
+              {dashboardStats.todayServices}
+            </Text>
             <Text style={styles.statLabel}>Servicios hoy</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{dashboardStats.completedServices}</Text>
+            <Text style={styles.statNumber}>
+              {dashboardStats.completedServices}
+            </Text>
             <Text style={styles.statLabel}>Completados</Text>
           </View>
           <View style={styles.statCard}>
@@ -267,27 +296,41 @@ export default function HomeScreen() {
           {loading ? (
             <Text style={styles.loadingText}>Cargando servicios...</Text>
           ) : todayServices.length > 0 ? (
-            todayServices.map((service) => (
+            todayServices.map(service => (
               <TouchableOpacity
                 key={service.id}
                 style={styles.serviceCard}
-                onPress={() => navigation.navigate('AssignmentDetail', { assignmentId: service.id })}
+                onPress={() =>
+                  navigation.navigate('AssignmentDetail', {
+                    assignmentId: service.id,
+                  })
+                }
               >
                 <View style={styles.serviceHeader}>
                   <Text style={styles.clientName}>{service.client_name}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(service.status) }]}>
-                    <Text style={styles.statusText}>{getStatusText(service.status)}</Text>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: getStatusColor(service.status) },
+                    ]}
+                  >
+                    <Text style={styles.statusText}>
+                      {getStatusText(service.status)}
+                    </Text>
                   </View>
                 </View>
                 <Text style={styles.serviceTime}>
-                  {formatTime(service.start_time)} - {formatTime(service.end_time)}
+                  {formatTime(service.start_time)} -{' '}
+                  {formatTime(service.end_time)}
                 </Text>
                 <Text style={styles.serviceAddress}>{service.address}</Text>
               </TouchableOpacity>
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No tienes servicios programados para hoy</Text>
+              <Text style={styles.emptyStateText}>
+                No tienes servicios programados para hoy
+              </Text>
             </View>
           )}
         </View>
@@ -296,16 +339,20 @@ export default function HomeScreen() {
           <Text style={styles.menuTitle}>Acciones Principales</Text>
 
           <View style={styles.menuGrid}>
-            <TouchableOpacity 
-               style={[styles.menuItem, styles.primaryAction]}
-               onPress={() => navigation.navigate('Assignments')}
-             >
-               <Text style={styles.menuIcon}>🏠</Text>
-               <Text style={[styles.menuItemText, styles.primaryText]}>Mis Servicios</Text>
-               <Text style={[styles.menuItemSubtext, styles.primarySubtext]}>Ver asignaciones</Text>
-             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.menuItem, styles.primaryAction]}
+              onPress={() => navigation.navigate('Assignments')}
+            >
+              <Text style={styles.menuIcon}>🏠</Text>
+              <Text style={[styles.menuItemText, styles.primaryText]}>
+                Mis Servicios
+              </Text>
+              <Text style={[styles.menuItemSubtext, styles.primarySubtext]}>
+                Ver asignaciones
+              </Text>
+            </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.menuItem, styles.secondaryAction]}
               onPress={() => navigation.navigate('Route')}
             >
@@ -314,7 +361,7 @@ export default function HomeScreen() {
               <Text style={styles.menuItemSubtext}>Planificar día</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.menuItem, styles.secondaryAction]}
               onPress={() => navigation.navigate('Balances')}
             >
@@ -323,7 +370,7 @@ export default function HomeScreen() {
               <Text style={styles.menuItemSubtext}>Ver balance</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.menuItem, styles.secondaryAction]}
               onPress={() => navigation.navigate('Calendar')}
             >
@@ -343,9 +390,15 @@ export default function HomeScreen() {
         <View style={styles.profileSection}>
           <TouchableOpacity style={styles.profileCard}>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{state.currentWorker?.name || 'Trabajadora'}</Text>
-              <Text style={styles.profileEmail}>{state.currentWorker?.email}</Text>
-              <Text style={styles.profileRole}>Auxiliar de Ayuda a Domicilio</Text>
+              <Text style={styles.profileName}>
+                {state.currentWorker?.name || 'Trabajadora'}
+              </Text>
+              <Text style={styles.profileEmail}>
+                {state.currentWorker?.email}
+              </Text>
+              <Text style={styles.profileRole}>
+                Auxiliar de Ayuda a Domicilio
+              </Text>
             </View>
             <Text style={styles.profileArrow}>→</Text>
           </TouchableOpacity>
@@ -362,10 +415,10 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Colors.backgroundLight,
   },
   header: {
-    backgroundColor: '#2563eb',
+    backgroundColor: Colors.primary,
     paddingTop: 60,
     paddingBottom: 30,
     paddingHorizontal: 20,
@@ -376,30 +429,30 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontSize: 26,
     fontWeight: 'bold',
-    color: 'white',
+    color: Colors.textLight,
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitleText: {
     fontSize: 16,
-    color: '#bfdbfe',
+    color: Colors.primaryLight,
     marginBottom: 8,
   },
   dateText: {
     fontSize: 14,
-    color: '#bfdbfe',
+    color: Colors.primaryLight,
     marginBottom: 12,
     textAlign: 'center',
     textTransform: 'capitalize',
   },
   statusBadge: {
-    backgroundColor: '#10b981',
+    backgroundColor: Colors.success,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
   },
   statusText: {
-    color: 'white',
+    color: Colors.textLight,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -411,7 +464,7 @@ const styles = StyleSheet.create({
     marginTop: -15,
   },
   statCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -421,12 +474,12 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2563eb',
+    color: Colors.primary,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#64748b',
+    color: Colors.textMuted,
     textAlign: 'center',
   },
   menuContainer: {
@@ -435,7 +488,7 @@ const styles = StyleSheet.create({
   menuTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 16,
   },
   menuGrid: {
@@ -444,7 +497,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   menuItem: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     padding: 20,
     borderRadius: 16,
     marginBottom: 16,
@@ -453,10 +506,10 @@ const styles = StyleSheet.create({
     ...shadowStyles.card,
   },
   primaryAction: {
-    backgroundColor: '#2563eb',
+    backgroundColor: Colors.primary,
   },
   secondaryAction: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
   },
   menuIcon: {
     fontSize: 32,
@@ -467,25 +520,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
     textAlign: 'center',
-    color: '#1e293b',
+    color: Colors.textPrimary,
   },
   menuItemSubtext: {
     fontSize: 12,
-    color: '#64748b',
+    color: Colors.textMuted,
     textAlign: 'center',
   },
   primaryText: {
-    color: 'white',
+    color: Colors.textLight,
   },
   primarySubtext: {
-    color: '#bfdbfe',
+    color: Colors.primaryLight,
   },
   profileSection: {
     paddingHorizontal: 20,
     marginBottom: 20,
   },
   profileCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     padding: 20,
     borderRadius: 16,
     flexDirection: 'row',
@@ -499,25 +552,25 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 4,
   },
   profileEmail: {
     fontSize: 14,
-    color: '#64748b',
+    color: Colors.textMuted,
     marginBottom: 2,
   },
   profileRole: {
     fontSize: 12,
-    color: '#2563eb',
+    color: Colors.primary,
     fontWeight: '500',
   },
   profileArrow: {
     fontSize: 20,
-    color: '#94a3b8',
+    color: Colors.textSecondary,
   },
   logoutButton: {
-    backgroundColor: '#ef4444',
+    backgroundColor: Colors.error,
     marginHorizontal: 20,
     marginBottom: 30,
     padding: 16,
@@ -525,7 +578,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoutButtonText: {
-    color: 'white',
+    color: Colors.textLight,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -535,11 +588,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 16,
   },
   serviceCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -554,34 +607,34 @@ const styles = StyleSheet.create({
   clientName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     flex: 1,
   },
   serviceTime: {
     fontSize: 14,
-    color: '#2563eb',
+    color: Colors.primary,
     fontWeight: '500',
     marginBottom: 4,
   },
   serviceAddress: {
     fontSize: 12,
-    color: '#64748b',
+    color: Colors.textMuted,
   },
   loadingText: {
     textAlign: 'center',
-    color: '#64748b',
+    color: Colors.textMuted,
     fontSize: 16,
     padding: 20,
   },
   emptyState: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     padding: 20,
     borderRadius: 12,
     alignItems: 'center',
     ...shadowStyles.card,
   },
   emptyStateText: {
-    color: '#64748b',
+    color: Colors.textMuted,
     fontSize: 16,
     textAlign: 'center',
   },

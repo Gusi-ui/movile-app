@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
  * Helper para generar estilos de sombra compatibles entre web y móvil
  * En web usa boxShadow, en móvil usa las propiedades shadow* nativas
  */
-export const getShadowStyle = (elevation = 3) => {
+export const getShadowStyle = (elevation = 3): object => {
   if (Platform.OS === 'web') {
     const opacity = Math.min(elevation * 0.05, 0.2);
     const blur = elevation * 2;
@@ -12,7 +12,7 @@ export const getShadowStyle = (elevation = 3) => {
       boxShadow: `0 ${elevation}px ${blur}px rgba(0, 0, 0, ${opacity})`,
     };
   }
-  
+
   return {
     shadowColor: '#000',
     shadowOffset: {

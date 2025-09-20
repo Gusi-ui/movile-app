@@ -3,6 +3,7 @@ import { Alert, Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import React, { useState } from 'react';
 
 import { useAuth } from '../contexts/AuthContext';
+import { Colors } from '../constants/colors';
 
 export default function LoginScreen(): React.JSX.Element {
   const { state, login } = useAuth();
@@ -17,7 +18,10 @@ export default function LoginScreen(): React.JSX.Element {
     try {
       await login({ email: email.trim(), password });
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Error de autenticación');
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Error de autenticación'
+      );
     }
     setSubmitting(false);
   };
@@ -27,15 +31,15 @@ export default function LoginScreen(): React.JSX.Element {
       <Text style={styles.title}>Acceso trabajadora</Text>
       <TextInput
         style={styles.input}
-        placeholder='Email'
-        autoCapitalize='none'
-        keyboardType='email-address'
+        placeholder="Email"
+        autoCapitalize="none"
+        keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
       />
       <TextInput
         style={styles.input}
-        placeholder='Contraseña'
+        placeholder="Contraseña"
         secureTextEntry
         value={password}
         onChangeText={setPassword}
@@ -53,10 +57,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '600', marginBottom: 8 },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: Colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
   },
 });

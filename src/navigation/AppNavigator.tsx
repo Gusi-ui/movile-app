@@ -11,10 +11,11 @@ import BalancesScreen from '../screens/BalancesScreen';
 import CalendarScreen from '../screens/CalendarScreen';
 import RouteScreen from '../screens/Route';
 import { RootStackParamList } from '../types';
+import { Colors } from '../constants/colors';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
-export default function AppNavigator() {
+export default function AppNavigator(): React.ReactElement {
   const { state } = useAuth();
 
   return (
@@ -22,9 +23,9 @@ export default function AppNavigator() {
       <Stack.Navigator
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#3b82f6',
+            backgroundColor: Colors.primary,
           },
-          headerTintColor: '#fff',
+          headerTintColor: Colors.textLight,
           headerTitleStyle: {
             fontWeight: 'bold',
           },

@@ -12,6 +12,7 @@ import {
 import { Balance, BalanceFilters } from '../types/database';
 import { getWorkerBalances } from '../lib/supabase';
 import { Database } from '../types/supabase';
+import { Colors } from '../constants/colors';
 
 type SupabaseBalance = Database['public']['Tables']['hours_balances']['Row'];
 
@@ -29,7 +30,10 @@ const adaptSupabaseBalance = (supabaseBalance: SupabaseBalance): Balance => {
     period_start: periodStart.toISOString(),
     period_end: periodEnd.toISOString(),
     base_salary: supabaseBalance.contracted_hours * 15, // Estimación: €15/hora
-    overtime_hours: Math.max(0, supabaseBalance.worked_hours - supabaseBalance.contracted_hours),
+    overtime_hours: Math.max(
+      0,
+      supabaseBalance.worked_hours - supabaseBalance.contracted_hours
+    ),
     overtime_rate: 20, // €20/hora extra
     bonuses: 0,
     deductions: 0,
@@ -42,21 +46,25 @@ const adaptSupabaseBalance = (supabaseBalance: SupabaseBalance): Balance => {
   };
 };
 
-export default function BalancesScreen() {
+export default function BalancesScreen(): React.ReactElement {
   const [balances, setBalances] = useState<Balance[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters] = useState<BalanceFilters>({});
 
-  const loadBalances = useCallback(async () => {
+  const loadBalances = useCallback(async (): Promise<void> => {
     try {
       setError(null);
       const response = await getWorkerBalances({
-        year: filters.period_from ? new Date(filters.period_from).getFullYear() : undefined,
-        month: filters.period_from ? (new Date(filters.period_from).getMonth() + 1).toString().padStart(2, '0') : undefined,
+        ...(filters.period_from && {
+          year: new Date(filters.period_from).getFullYear(),
+          month: (new Date(filters.period_from).getMonth() + 1)
+            .toString()
+            .padStart(2, '0'),
+        }),
       });
-      
+
       if (response.error) {
         setError('Error al cargar balances');
         Alert.alert('Error', 'No se pudieron cargar los balances');
@@ -66,7 +74,8 @@ export default function BalancesScreen() {
       const adaptedBalances = response.data.map(adaptSupabaseBalance);
       setBalances(adaptedBalances);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      const errorMessage =
+        err instanceof Error ? err.message : 'Error desconocido';
       setError(errorMessage);
       Alert.alert('Error', 'No se pudieron cargar los balances');
     } finally {
@@ -79,27 +88,27 @@ export default function BalancesScreen() {
     loadBalances();
   }, [loadBalances]);
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback((): void => {
     setRefreshing(true);
     loadBalances();
   }, [loadBalances]);
 
-  const getStatusColor = (status: Balance['status']) => {
+  const getStatusColor = (status: Balance['status']): string => {
     switch (status) {
       case 'pending':
-        return '#f59e0b';
+        return Colors.statusPending;
       case 'approved':
-        return '#3b82f6';
+        return Colors.statusApproved;
       case 'paid':
-        return '#10b981';
+        return Colors.statusPaid;
       case 'disputed':
-        return '#ef4444';
+        return Colors.statusDisputed;
       default:
-        return '#6b7280';
+        return Colors.statusDefault;
     }
   };
 
-  const getStatusText = (status: Balance['status']) => {
+  const getStatusText = (status: Balance['status']): string => {
     switch (status) {
       case 'pending':
         return 'Pendiente';
@@ -114,14 +123,14 @@ export default function BalancesScreen() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('es-ES', {
       style: 'currency',
       currency: 'EUR',
     }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleDateString('es-ES', {
       day: '2-digit',
@@ -130,21 +139,31 @@ export default function BalancesScreen() {
     });
   };
 
-  const formatPeriod = (startDate: string, endDate: string) => {
+  const formatPeriod = (startDate: string, endDate: string): string => {
     const start = new Date(startDate);
     const end = new Date(endDate);
-    
-    const startMonth = start.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-    const endMonth = end.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-    
+
+    const startMonth = start.toLocaleDateString('es-ES', {
+      month: 'long',
+      year: 'numeric',
+    });
+    const endMonth = end.toLocaleDateString('es-ES', {
+      month: 'long',
+      year: 'numeric',
+    });
+
     if (startMonth === endMonth) {
       return startMonth;
     }
-    
+
     return `${start.toLocaleDateString('es-ES', { month: 'short' })} - ${end.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}`;
   };
 
-  const renderBalanceItem = ({ item }: { item: Balance }) => (
+  const renderBalanceItem = ({
+    item,
+  }: {
+    item: Balance;
+  }): React.ReactElement => (
     <TouchableOpacity style={styles.balanceCard}>
       <View style={styles.cardHeader}>
         <View style={styles.periodContainer}>
@@ -161,9 +180,7 @@ export default function BalancesScreen() {
             { backgroundColor: getStatusColor(item.status) },
           ]}
         >
-          <Text style={styles.statusText}>
-            {getStatusText(item.status)}
-          </Text>
+          <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
         </View>
       </View>
 
@@ -237,7 +254,7 @@ export default function BalancesScreen() {
     </TouchableOpacity>
   );
 
-  const renderEmptyState = () => (
+  const renderEmptyState = (): React.ReactElement => (
     <View style={styles.emptyState}>
       <Text style={styles.emptyStateTitle}>No hay balances</Text>
       <Text style={styles.emptyStateText}>
@@ -249,7 +266,7 @@ export default function BalancesScreen() {
     </View>
   );
 
-  const renderError = () => (
+  const renderError = (): React.ReactElement => (
     <View style={styles.errorState}>
       <Text style={styles.errorTitle}>Error al cargar</Text>
       <Text style={styles.errorText}>{error}</Text>
@@ -259,15 +276,17 @@ export default function BalancesScreen() {
     </View>
   );
 
-  const calculateTotalEarnings = () => {
+  const calculateTotalEarnings = (): number => {
     return balances
       .filter(balance => balance.status === 'paid')
       .reduce((total, balance) => total + balance.total_amount, 0);
   };
 
-  const calculatePendingAmount = () => {
+  const calculatePendingAmount = (): number => {
     return balances
-      .filter(balance => balance.status === 'pending' || balance.status === 'approved')
+      .filter(
+        balance => balance.status === 'pending' || balance.status === 'approved'
+      )
       .reduce((total, balance) => total + balance.total_amount, 0);
   };
 
@@ -305,7 +324,7 @@ export default function BalancesScreen() {
       <FlatList
         data={balances}
         renderItem={renderBalanceItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={item => item.id}
         contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -320,7 +339,7 @@ export default function BalancesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   summaryContainer: {
     flexDirection: 'row',
@@ -329,11 +348,11 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -342,15 +361,15 @@ const styles = StyleSheet.create({
   summaryAmount: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#10b981',
+    color: Colors.success,
     marginBottom: 4,
   },
   pendingAmount: {
-    color: '#f59e0b',
+    color: Colors.warning,
   },
   summaryLabel: {
     fontSize: 14,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   listContainer: {
     padding: 16,
@@ -358,11 +377,11 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   balanceCard: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -380,12 +399,12 @@ const styles = StyleSheet.create({
   periodText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 4,
   },
   periodDates: {
     fontSize: 14,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -393,7 +412,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   statusText: {
-    color: 'white',
+    color: Colors.textLight,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -403,17 +422,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: Colors.border,
   },
   totalAmountLabel: {
     fontSize: 14,
-    color: '#64748b',
+    color: Colors.textSecondary,
     marginBottom: 4,
   },
   totalAmount: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: Colors.textPrimary,
   },
   detailsContainer: {
     marginBottom: 16,
@@ -426,26 +445,26 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#64748b',
+    color: Colors.textSecondary,
     flex: 1,
   },
   detailValue: {
     fontSize: 14,
-    color: '#1e293b',
+    color: Colors.textPrimary,
     fontWeight: '500',
   },
   positiveAmount: {
-    color: '#10b981',
+    color: Colors.success,
   },
   negativeAmount: {
-    color: '#ef4444',
+    color: Colors.error,
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+    borderTopColor: Colors.border,
   },
   statItem: {
     alignItems: 'center',
@@ -453,34 +472,34 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   notesContainer: {
     marginTop: 12,
     padding: 12,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Colors.backgroundLight,
     borderRadius: 8,
   },
   notesText: {
     fontSize: 14,
-    color: '#475569',
+    color: Colors.neutral600,
     fontStyle: 'italic',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#64748b',
+    color: Colors.textSecondary,
   },
   emptyState: {
     flex: 1,
@@ -491,23 +510,23 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: Colors.textPrimary,
     marginBottom: 8,
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#64748b',
+    color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
   },
   refreshButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: Colors.primaryLight,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   refreshButtonText: {
-    color: 'white',
+    color: Colors.textLight,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -520,23 +539,23 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#dc2626',
+    color: Colors.error,
     marginBottom: 8,
   },
   errorText: {
     fontSize: 16,
-    color: '#64748b',
+    color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
   },
   retryButton: {
-    backgroundColor: '#dc2626',
+    backgroundColor: Colors.error,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: 'white',
+    color: Colors.textLight,
     fontSize: 16,
     fontWeight: '600',
   },

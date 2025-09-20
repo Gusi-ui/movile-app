@@ -1,13 +1,46 @@
-// Mock AsyncStorage
+// AsyncStorage - using memory-based implementation for integration tests
 jest.mock('@react-native-async-storage/async-storage', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('@react-native-async-storage/async-storage/jest/async-storage-mock');
+  let cache: { [key: string]: string } = {};
+  return {
+    setItem: async (key: string, value: string) => {
+      cache[key] = value;
+      return Promise.resolve();
+    },
+    getItem: async (key: string) => {
+      return Promise.resolve(cache[key] || null);
+    },
+    removeItem: async (key: string) => {
+      delete cache[key];
+      return Promise.resolve();
+    },
+    multiRemove: async (keys: string[]) => {
+      keys.forEach(key => delete cache[key]);
+      return Promise.resolve();
+    },
+    clear: async () => {
+      cache = {};
+      return Promise.resolve();
+    },
+    getAllKeys: async () => {
+      return Promise.resolve(Object.keys(cache));
+    },
+    multiGet: async (keys: string[]) => {
+      return Promise.resolve(
+        keys.map(key => [key, cache[key] || null] as [string, string | null])
+      );
+    },
+    multiSet: async (keyValuePairs: [string, string][]) => {
+      keyValuePairs.forEach(([key, value]) => {
+        cache[key] = value;
+      });
+      return Promise.resolve();
+    },
+  };
 });
 
 // Mock react-native-gesture-handler
 jest.mock('react-native-gesture-handler', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-  const View = require('react-native/Libraries/Components/View/View');
+  const View = 'View';
   return {
     Swipeable: View,
     DrawerLayout: View,
@@ -33,7 +66,7 @@ jest.mock('react-native-gesture-handler', () => {
     RectButton: View,
     BorderlessButton: View,
     FlatList: View,
-    gestureHandlerRootHOC: jest.fn(() => (component: any) => component),
+    gestureHandlerRootHOC: (component: any) => component,
     Directions: {},
   };
 });
@@ -44,5 +77,7 @@ jest.mock('expo-status-bar', () => ({
 }));
 
 // Global setup
-declare const global: any;
-global.__DEV__ = true;
+declare const global: {
+  __DEV__: boolean;
+};
+(global as any).__DEV__ = true;
