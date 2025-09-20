@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, waitFor, fireEvent } from '@testing-library/react-native';
 import { Text, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
