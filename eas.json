@@ -62,14 +62,15 @@
   },
   "submit": {
     "production": {
-      "ios": {
-        "appleId": "your-apple-id@example.com",
-        "ascAppId": "1234567890",
-        "appleTeamId": "ABCDEFGHIJ"
-      },
       "android": {
-        "serviceAccountKeyPath": "../path/to/api-key.json",
-        "track": "internal"
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    },
+    "production-store": {
+      "android": {
+        "track": "production",
+        "releaseStatus": "draft"
       }
     }
   }
