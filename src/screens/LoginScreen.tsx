@@ -17,7 +17,7 @@ import { Colors } from '../constants/colors';
 export default function LoginScreen(): React.ReactElement {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, state, clearAllCache } = useAuth();
+  const { login, state } = useAuth();
 
   const handleLogin = async (): Promise<void> => {
     if (!email.trim() || !password.trim()) {
@@ -90,17 +90,6 @@ export default function LoginScreen(): React.ReactElement {
           >
             <Text style={styles.buttonText}>
               {state.isLoading ? 'Iniciando...' : 'Iniciar Sesión'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.clearCacheButton]}
-            onPress={clearAllCache}
-          >
-            <Text style={styles.clearCacheButtonText}>
-              🧹 LIMPIAR CACHÉ COMPLETO
-            </Text>
-            <Text style={styles.clearCacheSubtext}>
-              Eliminar datos de María García
             </Text>
           </TouchableOpacity>
         </View>
@@ -213,27 +202,5 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: 14,
     textAlign: 'center',
-  },
-  clearCacheButton: {
-    backgroundColor: Colors.error,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginTop: 20,
-    alignItems: 'center',
-    boxShadow: '0px 2px 3.84px rgba(0, 0, 0, 0.25)',
-    elevation: 5,
-  },
-  clearCacheButtonText: {
-    color: Colors.textLight,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  clearCacheSubtext: {
-    color: Colors.textLight,
-    fontSize: 12,
-    fontWeight: '400',
-    opacity: 0.8,
-    marginTop: 2,
   },
 });

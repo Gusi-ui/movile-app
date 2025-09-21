@@ -223,10 +223,15 @@ export default function HomeScreen(): React.ReactElement {
   };
 
   const formatTime = (timeString: string): string => {
-    return new Date(timeString).toLocaleTimeString('es-ES', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    if (!timeString) return '--:--';
+    try {
+      return new Date(timeString).toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch (error) {
+      return '--:--';
+    }
   };
 
   const handleLogout = (): void => {
@@ -263,7 +268,7 @@ export default function HomeScreen(): React.ReactElement {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
-              })}
+              }) || 'Fecha no disponible'}
             </Text>
             <View style={styles.statusBadge}>
               <Text style={styles.statusText}>● En servicio</Text>
@@ -274,23 +279,24 @@ export default function HomeScreen(): React.ReactElement {
         <View style={styles.quickStatsContainer}>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>
-              {dashboardStats.todayServices}
+              {dashboardStats.todayServices || 0}
             </Text>
             <Text style={styles.statLabel}>Servicios hoy</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>
-              {dashboardStats.completedServices}
+              {dashboardStats.completedServices || 0}
             </Text>
             <Text style={styles.statLabel}>Completados</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{dashboardStats.totalHours}h</Text>
+            <Text style={styles.statNumber}>
+              {dashboardStats.totalHours || 0}h
+            </Text>
             <Text style={styles.statLabel}>Tiempo total</Text>
           </View>
         </View>
 
-        {/* Today's Services */}
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Servicios de Hoy</Text>
           {loading ? (
@@ -307,7 +313,9 @@ export default function HomeScreen(): React.ReactElement {
                 }
               >
                 <View style={styles.serviceHeader}>
-                  <Text style={styles.clientName}>{service.client_name}</Text>
+                  <Text style={styles.clientName}>
+                    {service.client_name || 'Cliente sin nombre'}
+                  </Text>
                   <View
                     style={[
                       styles.statusBadge,
@@ -323,13 +331,15 @@ export default function HomeScreen(): React.ReactElement {
                   {formatTime(service.start_time)} -{' '}
                   {formatTime(service.end_time)}
                 </Text>
-                <Text style={styles.serviceAddress}>{service.address}</Text>
+                <Text style={styles.serviceAddress}>
+                  {service.address || 'Dirección no disponible'}
+                </Text>
               </TouchableOpacity>
             ))
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>
-                No tienes servicios programados para hoy
+                No hay servicios programados para hoy
               </Text>
             </View>
           )}
@@ -394,7 +404,7 @@ export default function HomeScreen(): React.ReactElement {
                 {state.currentWorker?.name || 'Trabajadora'}
               </Text>
               <Text style={styles.profileEmail}>
-                {state.currentWorker?.email}
+                {state.currentWorker?.email || ''}
               </Text>
               <Text style={styles.profileRole}>
                 Auxiliar de Ayuda a Domicilio

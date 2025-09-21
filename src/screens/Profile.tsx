@@ -172,7 +172,9 @@ export default function ProfileScreen(): React.JSX.Element {
       <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
-            {workerInfo ? `${workerInfo.name[0]}${workerInfo.surname[0]}` : 'U'}
+            {workerInfo && workerInfo.name && workerInfo.surname
+              ? `${workerInfo.name[0]}${workerInfo.surname[0]}`
+              : 'U'}
           </Text>
         </View>
       </View>
