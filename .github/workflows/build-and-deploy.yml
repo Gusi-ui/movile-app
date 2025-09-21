@@ -61,7 +61,7 @@ jobs:
       - name: Build for internal distribution (on release)
         if: github.event_name == 'release'
         run: |
-          eas build --platform all --profile production-internal --non-interactive --no-wait
+          eas build --platform android --profile production-internal --non-interactive --no-wait
 
       - name: Build preview (on main push)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
