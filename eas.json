@@ -58,6 +58,16 @@
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"
       }
+    },
+    "production-android-only": {
+      "distribution": "store",
+      "env": {
+        "EXPO_PUBLIC_ENV": "production"
+      },
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      }
     }
   },
   "submit": {

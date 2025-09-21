@@ -92,12 +92,12 @@ jobs:
           packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Build production
+      - name: Build production (Android only)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas build --platform all --profile production --non-interactive
+        run: eas build --platform android --profile production-android-only --non-interactive
 
-      - name: Submit to app stores
+      - name: Submit to Google Play Store
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas submit --platform all --profile production --non-interactive
+        run: eas submit --platform android --profile production --non-interactive
