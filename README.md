@@ -1,5 +1,7 @@
 # SAD LAS Worker Mobile App
 
+🚀 **Estado actual:** Optimizado para Android - Builds automáticos funcionando
+
 Una aplicación móvil nativa desarrollada con React Native y Expo para trabajadores de SAD LAS.
 
 ## 🚀 Características
@@ -42,17 +44,20 @@ Una aplicación móvil nativa desarrollada con React Native y Expo para trabajad
 ## 🔧 Instalación
 
 1. **Clonar el repositorio**
+
    ```bash
    git clone https://github.com/tu-usuario/sad-las-mobile.git
    cd sad-las-mobile
    ```
 
 2. **Instalar dependencias**
+
    ```bash
    npm install
    ```
 
 3. **Configurar variables de entorno**
+
    ```bash
    cp .env.example .env
    # Editar .env con tus configuraciones
@@ -66,12 +71,14 @@ Una aplicación móvil nativa desarrollada con React Native y Expo para trabajad
 ## 🏗️ Scripts Disponibles
 
 ### Desarrollo
+
 - `npm start` - Inicia el servidor de desarrollo
 - `npm run android` - Ejecuta en Android
 - `npm run ios` - Ejecuta en iOS
 - `npm run web` - Ejecuta en navegador web
 
 ### Build y Deploy
+
 - `npm run build:android` - Build para Android
 - `npm run build:ios` - Build para iOS
 - `npm run build:all` - Build para todas las plataformas
@@ -79,6 +86,7 @@ Una aplicación móvil nativa desarrollada con React Native y Expo para trabajad
 - `npm run build:production` - Build de producción
 
 ### Calidad de Código
+
 - `npm run lint` - Ejecuta ESLint
 - `npm run lint:fix` - Corrige errores de lint automáticamente
 - `npm run type-check` - Verifica tipos TypeScript
@@ -87,6 +95,7 @@ Una aplicación móvil nativa desarrollada con React Native y Expo para trabajad
 - `npm run test:coverage` - Genera reporte de cobertura
 
 ### Utilidades
+
 - `npm run clean` - Limpia caché de Expo
 - `npm run prebuild` - Genera código nativo
 - `npm run prebuild:clean` - Regenera código nativo
@@ -96,11 +105,13 @@ Una aplicación móvil nativa desarrollada con React Native y Expo para trabajad
 ### EAS Build
 
 1. **Instalar EAS CLI**
+
    ```bash
    npm install -g eas-cli
    ```
 
 2. **Configurar proyecto EAS**
+
    ```bash
    eas build:configure
    ```
@@ -121,11 +132,13 @@ Una aplicación móvil nativa desarrollada con React Native y Expo para trabajad
 ### Configuración de Stores
 
 #### iOS App Store
+
 1. Configurar Apple Developer Account
 2. Actualizar `eas.json` con tu Apple ID y Team ID
 3. Configurar certificados y provisioning profiles
 
 #### Google Play Store
+
 1. Crear cuenta de Google Play Developer
 2. Generar service account key
 3. Configurar `eas.json` con la ruta del key
@@ -198,6 +211,7 @@ GOOGLE_MAPS_API_KEY=tu-api-key-aqui
 ## 🧪 Testing
 
 ### Ejecutar Tests
+
 ```bash
 npm test                # Ejecuta todos los tests
 npm run test:watch      # Modo watch
@@ -205,6 +219,7 @@ npm run test:coverage   # Con cobertura
 ```
 
 ### Estructura de Tests
+
 - Tests unitarios en `__tests__/`
 - Tests de componentes con React Native Testing Library
 - Mocks configurados para AsyncStorage y navegación
@@ -238,6 +253,7 @@ npm run test:coverage   # Con cobertura
 ## 🚀 Deployment
 
 ### Manual
+
 ```bash
 # Build de producción
 npm run build:production
@@ -247,6 +263,7 @@ npm run submit:all
 ```
 
 ### Automático
+
 - Push a `main` para deploy automático
 - Crear tag `v*` para release con stores
 
@@ -255,12 +272,14 @@ npm run submit:all
 ### Problemas Comunes
 
 1. **Error de Metro bundler**
+
    ```bash
    npm run clean
    npm start -- --reset-cache
    ```
 
 2. **Problemas con dependencias nativas**
+
    ```bash
    npm run prebuild:clean
    ```
